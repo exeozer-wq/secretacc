@@ -478,7 +478,7 @@ local itemNames = {
     "Arrow", "Rokakaka Fruit", "Banknote", "Frog", "Requiem Arrow",
     "Vampire Mask", "Nostalgic Relic", "Shiny Gem", "Ender Pearl",
     "Shadow Camera", "DIO's Diary", "Monochromatic Sphere",
-    "Galaxy Portal", "Golden Mask"
+    "Galaxy Portal", "Holy Corpse", "Golden Mask"
 }
 
 local function isTargetItem(obj)
