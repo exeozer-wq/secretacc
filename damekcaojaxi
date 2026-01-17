@@ -1244,6 +1244,7 @@ do
 
     ESPTab:Dropdown({
         Title = "Exclude from Selling",
+        Flag = "excluded_sell_items",
         Desc = "Selected items will NOT be sold",
         Values = itemNames,            -- same list as ESP uses
         Multi = true,
