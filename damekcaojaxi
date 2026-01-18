@@ -131,7 +131,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v2.0",
+        Title = "v2.0.1",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -313,6 +313,39 @@ local function tableToClipboard(luau_table, indent)
     local jsonString = parseJSON(luau_table, indent)
     setclipboard(jsonString)
     return jsonString
+end
+
+
+
+-- === Silent Anti-Void (background) ===
+do
+    local VOID_THRESHOLD = -50
+    local SAFE_POS = Vector3.new(5644, 679, -1389)   -- your coordinates
+
+    local Players = game:GetService("Players")
+    local player = Players.LocalPlayer
+
+    local function setupAntiVoid(char)
+        local root = char:WaitForChild("HumanoidRootPart", 8)
+        if not root then return end
+
+        task.spawn(function()
+            while char.Parent do
+                task.wait(0.15)
+                if root.Position.Y < VOID_THRESHOLD then
+                    root.CFrame = CFrame.new(SAFE_POS)
+                end
+            end
+        end)
+    end
+
+    -- Current character
+    if player.Character then
+        setupAntiVoid(player.Character)
+    end
+
+    -- Future characters (respawn/death)
+    player.CharacterAdded:Connect(setupAntiVoid)
 end
 
 
@@ -562,12 +595,15 @@ local function setESPEnabled(enabled)
     end
 end
 
--- Watch new items
+local itemGrabEnabled = false  -- Controls frog auto-touch + future grabs
+
+-- Then REPLACE your entire workspace.DescendantAdded block with this:
 workspace.DescendantAdded:Connect(function(desc)
+    -- Normal ESP logic for all target items (always runs)
     if isTargetItem(desc) then
         task.delay(0.15, function()
             if desc and desc.Parent then
-                addESP(desc)  -- this now checks parent
+                addESP(desc)
 
                 if not itemConnections[desc] then
                     itemConnections[desc] = desc:GetPropertyChangedSignal("Parent"):Connect(function()
@@ -589,6 +625,39 @@ workspace.DescendantAdded:Connect(function(desc)
                     end)
                 end
             end
+        end)
+    end
+
+    -- SPECIAL FROG HANDLER (ONLY when itemGrabEnabled = true)
+    if desc.Name == "Frog" and itemGrabEnabled then
+        task.delay(0.25, function()
+            if not desc or not desc.Parent or not desc:IsDescendantOf(workspace) then return end
+
+            local lp = game.Players.LocalPlayer
+
+            if desc:IsDescendantOf(lp.Character) or desc:IsDescendantOf(lp.Backpack) then return end
+            if workspace:FindFirstChild("Entities") and desc:IsDescendantOf(workspace.Entities) then return end
+
+            local touchPart = desc:FindFirstChild("Handle")
+                         or desc.PrimaryPart
+                         or desc:FindFirstChildWhichIsA("BasePart", true)
+
+            if not touchPart or not touchPart:IsA("BasePart") then return end
+
+            if not isWithinMap(touchPart.Position) then return end
+
+            local char = lp.Character
+            if not char then return end
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+
+            pcall(function()
+                firetouchinterest(hrp, touchPart, 0)
+                task.wait(0.03)
+                firetouchinterest(hrp, touchPart, 1)
+            end)
+
+            print("🐸 Frog auto-grabbed (toggle active)")
         end)
     end
 end)
@@ -1142,29 +1211,57 @@ do
         end
     })
 
-    -- Listen for new selected items (WindUI notification, not in Entities)
     workspace.DescendantAdded:Connect(function(obj)
         if notifyEnabled then
             for _, rareName in ipairs(selectedNotifyItems) do
                 if obj.Name == rareName then
-                    -- Ignore if inside Entities
-                    local parent = obj.Parent
-                    local inEntities = false
-                    while parent do
-                        if parent == workspace:FindFirstChild("Entities") then
-                            inEntities = true
-                            break
+                    task.delay(0.25, function()   -- increased slightly to 0.25s for safety
+                        if not obj or not obj.Parent then return end
+                        
+                        -- Ignore if inside Entities folder
+                        local parent = obj.Parent
+                        local inEntities = false
+                        while parent do
+                            if parent == workspace:FindFirstChild("Entities") then
+                                inEntities = true
+                                break
+                            end
+                            parent = parent.Parent
                         end
-                        parent = parent.Parent
-                    end
-                    if not inEntities then
-                        WindUI:Notify({
-                            Title = rareName .. " Spawned!",
-                            Content = rareName .. " has spawned!",
-                            Icon = "info-square-bold",
-                            Duration = 3
-                        })
-                    end
+                        
+                        if inEntities then return end
+                        
+                        -- ────────────────────────────────────────────────
+                        -- Find a part we can get Position from (more cases)
+                        -- ────────────────────────────────────────────────
+                        local posPart = nil
+                        
+                        if obj:IsA("BasePart") then
+                            posPart = obj
+                            
+                        elseif obj:IsA("Model") then
+                            -- Most common case
+                            posPart = obj.PrimaryPart 
+                                or obj:FindFirstChild("Handle", true) 
+                                or obj:FindFirstChildWhichIsA("BasePart", true)
+                            
+                        elseif obj:IsA("Tool") then
+                            -- Rare, but possible
+                            posPart = obj:FindFirstChild("Handle") 
+                                or obj:FindFirstChildWhichIsA("BasePart", true)
+                        end
+                        
+                        -- Final safety check
+                        if posPart and posPart:IsA("BasePart") and isWithinMap(posPart.Position) then
+                            WindUI:Notify({
+                                Title = rareName .. " Spawned!",
+                                Content = rareName .. " has spawned!",
+                                Icon = "info-square-bold",
+                                Duration = 3.5
+                            })
+                        end
+                        -- else: silently ignore (out of bounds, no valid part, etc.)
+                    end)
                 end
             end
         end
@@ -1290,6 +1387,7 @@ do
         Flag = "Auto_Farm_Items",
         Value = false,
         Callback = function(enabled)
+            itemGrabEnabled = enabled
             autoFarmEnabled = enabled
             
             if enabled then
