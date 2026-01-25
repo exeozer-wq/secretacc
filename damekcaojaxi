@@ -447,7 +447,7 @@ local function runDamage(playerName)
             local args = {
                 humanoid,
                 spoofedCFrame,
-                59,
+                40,
                 0.25,
                 Vector3.new(0, 0, 0),
                 "rbxassetid://241837157",
@@ -628,7 +628,7 @@ workspace.DescendantAdded:Connect(function(desc)
         end)
     end
 
-    -- SPECIAL FROG HANDLER (ONLY when itemGrabEnabled = true)
+ -- SPECIAL FROG HANDLER (ONLY when itemGrabEnabled = true)
     if desc.Name == "Frog" and itemGrabEnabled then
         task.delay(0.25, function()
             if not desc or not desc.Parent or not desc:IsDescendantOf(workspace) then return end
@@ -656,8 +656,6 @@ workspace.DescendantAdded:Connect(function(desc)
                 task.wait(0.03)
                 firetouchinterest(hrp, touchPart, 1)
             end)
-
-            print("🐸 Frog auto-grabbed (toggle active)")
         end)
     end
 end)
@@ -759,7 +757,7 @@ local function runKillAura()
         local args = {
             target.hum,
             target.root.CFrame,
-            59,                    -- damage (same as your other functions)
+            40,                    -- damage (same as your other functions)
             0.25,
             Vector3.new(0,0,0),
             "rbxassetid://241837157",
@@ -823,21 +821,33 @@ do
     end
     updatePlayerLists()
 
-    -- Listen for player join/leave
-    Players.PlayerAdded:Connect(function()
-        updatePlayerLists()
-        PlayerDropdown:Refresh(formattedPlayers)
-        NameListParagraph:Set("Names: " .. table.concat(playerNames, ", "))
-        DisplayNameListParagraph:Set("Display Names: " .. table.concat(playerDisplayNames, ", "))
-    end)
-    Players.PlayerRemoving:Connect(function()
-        updatePlayerLists()
-        PlayerDropdown:Refresh(formattedPlayers)
-        NameListParagraph:Set("Names: " .. table.concat(playerNames, ", "))
-        DisplayNameListParagraph:Set("Display Names: " .. table.concat(playerDisplayNames, ", "))
-    end)
+    -- Player List (real-time updating dropdown)
+    local Players = cloneref(game:GetService("Players"))
+    local playerNames = {}
+    local playerDisplayNames = {}
+    local formattedPlayers = {}
 
-    -- Dropdown for players (shows DisplayName (@username))
+    local function updatePlayerLists()
+        playerNames = {}
+        playerDisplayNames = {}
+        formattedPlayers = {}
+
+        for _, plr in ipairs(Players:GetPlayers()) do
+            table.insert(playerNames, plr.Name)
+            table.insert(playerDisplayNames, plr.DisplayName or plr.Name)
+
+            local entry = string.format("%s (@%s)", plr.DisplayName or plr.Name, plr.Name)
+            table.insert(formattedPlayers, entry)
+        end
+
+        table.sort(formattedPlayers, function(a, b)
+            return string.lower(a) < string.lower(b)
+        end)
+    end
+
+    -- Initial population
+    updatePlayerLists()
+
     local selectedPlayer = nil
 
     local PlayerDropdown = MainTab:Dropdown({
@@ -845,13 +855,44 @@ do
         Values = formattedPlayers,
         Value = formattedPlayers[1] or nil,
         Callback = function(value)
-            local username = value:match("%(@([^)]+)%)")
-            if username then
-                selectedPlayer = username
+            if not value then
+                selectedPlayer = nil
+                return
             end
-            -- No notification code here! That belongs in the global DescendantAdded listener
+            local username = value:match("%(@([^)]+)%)")
+            selectedPlayer = username or value  -- fallback if regex fails
         end
-    })  -- ← THIS ) WAS MISSING — now the table closes properly
+    })
+
+    -- Real-time updates
+    Players.PlayerAdded:Connect(function()
+        task.delay(0.4, updatePlayerLists)  -- delay helps DisplayName load
+        task.delay(0.5, function()
+            if PlayerDropdown then
+                PlayerDropdown:Refresh(formattedPlayers, true)  -- preserve selection if possible
+            end
+        end)
+    end)
+
+    Players.PlayerRemoving:Connect(function()
+        task.delay(0.2, function()
+            updatePlayerLists()
+            if PlayerDropdown then
+                PlayerDropdown:Refresh(formattedPlayers, true)
+            end
+        end)
+    end)
+
+    -- Extra safety net: refresh every ~30 seconds
+    task.spawn(function()
+        while true do
+            task.wait(30)
+            updatePlayerLists()
+            if PlayerDropdown then
+                PlayerDropdown:Refresh(formattedPlayers, true)
+            end
+        end
+    end)
 
     -- Now continue with buttons and toggles — these will now appear!
     MainTab:Button({
@@ -1057,7 +1098,7 @@ do
                 local args = {
                     dio.Humanoid,
                     dio.HumanoidRootPart.CFrame,
-                    59,
+                    40,
                     0.25,
                     Vector3.new(0, 0, 0),
                     "rbxassetid://241837157",
@@ -1085,7 +1126,7 @@ do
                 local args = {
                     fv.Humanoid,
                     fv.HumanoidRootPart.CFrame,
-                    59,
+                    40,
                     0.25,
                     Vector3.new(9.64501667022705, 0.0000011865736269101035, -2.6407666206359863),
                     "rbxassetid://241837157",
@@ -1116,7 +1157,7 @@ do
                 local args = {
                     dioBrando.Humanoid,
                     dioBrando.HumanoidRootPart.CFrame,
-                    59,
+                    40,
                     0.25,
                     Vector3.new(-9.983454704284668, 0.16844820976257324, -0.5497897863388062),
                     "rbxassetid://241837157",
@@ -1137,7 +1178,7 @@ do
                     local args = {
                         minion.Humanoid,
                         minion.HumanoidRootPart.CFrame,
-                        59,
+                        40,
                         0.25,
                         Vector3.new(-9.983454704284668, 0.16844820976257324, -0.5497897863388062),
                         "rbxassetid://241837157",
@@ -1461,6 +1502,8 @@ do
                         })
                     end)
                 end
+
+                
             else
                 -- Toggle off → thread will stop naturally via while condition
             end
