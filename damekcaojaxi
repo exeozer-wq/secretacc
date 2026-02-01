@@ -131,7 +131,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v2.0.1",
+        Title = "v2.0.2",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -385,6 +385,9 @@ local function sellAllItems(delay, excludeList)
 
     -- Helper
     local function shouldSkip(toolName)
+        if toolName == "Trowel" then
+            return true
+        end
         return table.find(excludeList, toolName) ~= nil
     end
 
@@ -694,7 +697,9 @@ local killAuraRange = 25          -- default value, will be controlled by slider
 local killAuraDelay = 0.12         -- how often to attack (seconds)
 local killAuraThread = nil
 
-local function isValidTarget(humanoid, rootPart, isBoss)
+local function isValidTarget(humanoid, rootPart, isBoss, range)
+    range = range or killAuraRange          -- Now it uses the parameter!
+    
     if not humanoid or not rootPart then return false end
     if humanoid.Health <= 0 then return false end
     
@@ -703,20 +708,18 @@ local function isValidTarget(humanoid, rootPart, isBoss)
     if not myRoot then return false end
     
     local distance = (myRoot.Position - rootPart.Position).Magnitude
-    if distance > killAuraRange then return false end
+    if distance > range then return false end
     
-    -- Optional: skip yourself
     if rootPart:IsDescendantOf(game.Players.LocalPlayer.Character) then
         return false
     end
     
-    -- Optional: skip teammates / friends (add your own logic if needed)
-    -- if game.Players:GetPlayerFromCharacter(rootPart.Parent) then ... end
-    
+    -- you can add if u wanna skip friends or smth
+
     return true
 end
 
-local function runKillAura()
+local function runKillAura(overrideRange)
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local DamageEvent = ReplicatedStorage:WaitForChild("Damage")
     
@@ -726,6 +729,8 @@ local function runKillAura()
     local myRoot = myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
     
+    local useRange = overrideRange or killAuraRange  -- NEW: Supports override!
+    
     -- Collect valid targets (players + bosses/entities)
     local targets = {}
     
@@ -734,19 +739,19 @@ local function runKillAura()
         if plr ~= game.Players.LocalPlayer and plr.Character then
             local hum = plr.Character:FindFirstChild("Humanoid")
             local root = plr.Character:FindFirstChild("HumanoidRootPart")
-            if isValidTarget(hum, root, false) then
+            if isValidTarget(hum, root, false, useRange) then  -- Pass range to validator
                 table.insert(targets, {hum = hum, root = root})
             end
         end
     end
     
-    -- Bosses / Entities (optional – comment out if you only want PvP)
+    -- Bosses / Entities
     local entitiesFolder = workspace:FindFirstChild("Entities")
     if entitiesFolder then
         for _, ent in ipairs(entitiesFolder:GetChildren()) do
             local hum = ent:FindFirstChild("Humanoid")
             local root = ent:FindFirstChild("HumanoidRootPart") or ent:FindFirstChild("HumanoidRoot")
-            if hum and root and isValidTarget(hum, root, true) then
+            if hum and root and isValidTarget(hum, root, true, useRange) then  -- Pass range
                 table.insert(targets, {hum = hum, root = root})
             end
         end
@@ -757,7 +762,7 @@ local function runKillAura()
         local args = {
             target.hum,
             target.root.CFrame,
-            40,                    -- damage (same as your other functions)
+            40,
             0.25,
             Vector3.new(0,0,0),
             "rbxassetid://241837157",
@@ -1086,6 +1091,10 @@ do
         Opened = true
     })
 
+    -- Boss list for dropdown (entity names)
+    local bossNames = {"DIO", "Funny Valentine", "Dio Brando"}
+    table.sort(bossNames)  --sort alphabetically
+
     -- Example boss buttons (add your logic as needed)
     BossSection:Button({
         Title = "DIO",
@@ -1197,6 +1206,137 @@ do
                 WindUI:Notify({ Title = "DIO BRANDO", Desc = "Attacked DIO BRANDO and minions!", Icon = "check", Duration = 1 })
             else
                 WindUI:Notify({ Title = "DIO BRANDO", Content = "DIO BRANDO and minions not found!", Icon = "x", Duration = 1 })
+            end
+        end
+    })
+
+    local BossSection2 = BossesTab:Section({
+        Title = "Boss autofarm",
+        Opened = true
+    })
+
+    -- Multi-select dropdown for bosses
+    local selectedBosses = {}
+    BossSection2:Dropdown({
+        Title = "Select Bosses",
+        Values = bossNames,
+        Multi = true,
+        Value = {},
+        Callback = function(values)
+            selectedBosses = values  -- Table of selected boss names, e.g., {"DIO", "Dio Brando"}
+        end
+    })
+
+    BossSection2:Space()
+
+    -- Auto-farm toggle (DIO MINION FIX: 45-stud range boost)
+    local autoBossFarmEnabled = false
+    local autoBossFarmThread = nil
+
+    BossSection2:Toggle({
+        Title = "Autofarm selected bosses",
+        Flag = "Auto_Boss_Farm",
+        Value = false,
+        Callback = function(enabled)
+            autoBossFarmEnabled = enabled
+
+            if enabled then
+                if #selectedBosses == 0 then
+                    WindUI:Notify({ Title = "No Bosses Selected", Duration = 2 })
+                    autoBossFarmEnabled = false
+                    return
+                end
+
+                if not autoBossFarmThread then
+                    autoBossFarmThread = task.spawn(function()
+                        WindUI:Notify({ Title = "Boss Farm Started", Duration = 2 })
+
+                        local player = game.Players.LocalPlayer
+                        local entitiesFolder = workspace:WaitForChild("Entities", 10)
+
+                        if not entitiesFolder then
+                            WindUI:Notify({ Title = "Entities folder not found", Duration = 4 })
+                            autoBossFarmEnabled = false
+                            return
+                        end
+
+                        while autoBossFarmEnabled do
+                            local playerChar = player.Character
+                            if not playerChar then
+                                task.wait(1)
+                                continue
+                            end
+                            local playerHRP = playerChar:FindFirstChild("HumanoidRootPart")
+                            if not playerHRP then
+                                task.wait(1)
+                                continue
+                            end
+
+                            -- COLLECT alive bosses + distances
+                            local aliveBosses = {}
+                            for _, bossName in ipairs(selectedBosses) do
+                                local boss = entitiesFolder:FindFirstChild(bossName)
+                                if not boss then continue end
+
+                                local humanoid = boss:FindFirstChild("Humanoid")
+                                local root = boss:FindFirstChild("HumanoidRootPart") or boss:FindFirstChild("HumanoidRoot")
+                                if humanoid and root and humanoid.Health > 0 then
+                                    local distance = (playerHRP.Position - root.Position).Magnitude
+                                    table.insert(aliveBosses, {
+                                        name = bossName,
+                                        humanoid = humanoid,
+                                        root = root,
+                                        distance = distance
+                                    })
+                                end
+                            end
+
+                            if #aliveBosses == 0 then
+                                task.wait(1.5)
+                                continue
+                            end
+
+                            -- Pick CLOSEST
+                            table.sort(aliveBosses, function(a, b) return a.distance < b.distance end)
+                            local targetBoss = aliveBosses[1]
+
+                            WindUI:Notify({
+                                Title = "Found " .. targetBoss.name,
+                                Content = "(" .. math.floor(targetBoss.distance) .. " studs)",
+                                Duration = 1.2
+                            })
+
+                            -- SINGLE-TARGET LOOP (with DIO MINION BOOST!)
+                            local attackStart = tick()
+                            while autoBossFarmEnabled 
+                                and targetBoss.humanoid.Health > 0 
+                                and targetBoss.root.Parent 
+                                and (tick() - attackStart < 30)
+                            do
+                                -- SMOOTH FLOAT
+                                pcall(function()
+                                    playerHRP.CFrame = CFrame.new(targetBoss.root.Position + Vector3.new(0, 10, 0))
+                                    playerHRP.Velocity = Vector3.new(0, 0, 0)
+                                    playerHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                end)
+
+                                -- DPS: BOOST RANGE FOR DIO BRANDO MINIONS!
+                                if targetBoss.name == "Dio Brando" then
+                                    runKillAura(45)  -- HUGE range: catches ALL minions instantly!
+                                else
+                                    runKillAura()  -- Normal range
+                                end
+
+                                task.wait(0.04)  -- Blazing fast!
+                            end
+                        end
+
+                        autoBossFarmThread = nil
+                        WindUI:Notify({ Title = "Boss Farm Stopped", Duration = 2 })
+                    end)
+                end
+            else
+                autoBossFarmEnabled = false
             end
         end
     })
@@ -1547,9 +1687,9 @@ do
                                 continue
                             end
 
-                            -- Sell equipped first
+                            -- Sell equipped first (skip Trowel)
                             local equipped = character:FindFirstChildOfClass("Tool")
-                            if equipped and not table.find(excludedSellItems, equipped.Name) then
+                            if equipped and equipped.Name ~= "Trowel" and not table.find(excludedSellItems, equipped.Name) then
                                 game:GetService("ReplicatedStorage")
                                     :WaitForChild("BismalqStuff")
                                     :WaitForChild("Remotes")
@@ -1558,10 +1698,12 @@ do
                                 task.wait(0.2)
                             end
 
-                            -- Sell from backpack (one by one)
+                            -- Sell from backpack (skip Trowel)
                             for _, tool in ipairs(backpack:GetChildren()) do
                                 if not autoSellEnabled then break end
-                                if tool:IsA("Tool") and not table.find(excludedSellItems, tool.Name) then
+                                if tool:IsA("Tool") 
+                                and tool.Name ~= "Trowel" 
+                                and not table.find(excludedSellItems, tool.Name) then
                                     humanoid:EquipTool(tool)
                                     task.wait(0.15)
 
@@ -1576,12 +1718,11 @@ do
                                             :WaitForChild("Remotes")
                                             :WaitForChild("Sell"):FireServer()
                                         soldThisCycle += 1
-                                        task.wait(0.25)  -- sell delay
+                                        task.wait(0.25)
                                     end
                                 end
                             end
 
-                            -- Feedback if something was sold
                             if soldThisCycle > 0 then
                                 WindUI:Notify({
                                     Title = "Auto Sell",
@@ -1590,8 +1731,7 @@ do
                                 })
                             end
 
-                            -- Wait before next full check
-                            task.wait(3.2)  -- adjust this interval (3–5 sec is usually safe)
+                            task.wait(3.2)
                         end
 
                         autoSellThread = nil
