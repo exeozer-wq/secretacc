@@ -1229,7 +1229,7 @@ do
 
     BossSection2:Space()
 
-    -- Auto-farm toggle (DIO MINION FIX: 45-stud range boost)
+    -- Auto-farm toggle (DIO MINION FIX: 45-stud range boost + FV Deflect handling)
     local autoBossFarmEnabled = false
     local autoBossFarmThread = nil
 
@@ -1306,28 +1306,54 @@ do
                                 Duration = 1.2
                             })
 
-                            -- SINGLE-TARGET LOOP (with DIO MINION BOOST!)
+                            -- SINGLE-TARGET LOOP (Funny Valentine Deflect handling + safe teleport)
                             local attackStart = tick()
                             while autoBossFarmEnabled 
                                 and targetBoss.humanoid.Health > 0 
                                 and targetBoss.root.Parent 
                                 and (tick() - attackStart < 30)
                             do
-                                -- SMOOTH FLOAT
+                                -- SMOOTH FLOAT TO BOSS (normal position when not in deflect)
                                 pcall(function()
                                     playerHRP.CFrame = CFrame.new(targetBoss.root.Position + Vector3.new(0, 10, 0))
                                     playerHRP.Velocity = Vector3.new(0, 0, 0)
                                     playerHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                                 end)
 
-                                -- DPS: BOOST RANGE FOR DIO BRANDO MINIONS!
-                                if targetBoss.name == "Dio Brando" then
-                                    runKillAura(45)  -- HUGE range: catches ALL minions instantly!
-                                else
-                                    runKillAura()  -- Normal range
+                                -- === FUNNY VALENTINE DEFLECT CHECK & SAFE TELEPORT ===
+                                local shouldAttack = true
+
+                                if targetBoss.name == "Funny Valentine" then
+                                    local entities = workspace:FindFirstChild("Entities")
+                                    if entities then
+                                        local fv = entities:FindFirstChild("Funny Valentine")
+                                        if fv then
+                                            local deflect = fv:FindFirstChild("Deflect")
+                                            if deflect and deflect:IsA("BoolValue") and deflect.Value == true then
+                                                shouldAttack = false
+                                                
+                                                -- Teleport to safe location during Deflect
+                                                pcall(function()
+                                                    playerHRP.CFrame = CFrame.new(4223, 349, 5373)
+                                                    playerHRP.Velocity = Vector3.new(0, 0, 0)
+                                                    playerHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                                end)
+                                            end
+                                        end
+                                    end
                                 end
 
-                                task.wait(0.04)  -- Blazing fast!
+                                -- Only deal damage if we should attack (deflect is off or not FV)
+                                if shouldAttack then
+                                    -- DPS: extra range for Dio Brando minions
+                                    if targetBoss.name == "Dio Brando" then
+                                        runKillAura(45)
+                                    else
+                                        runKillAura()
+                                    end
+                                end
+
+                                task.wait(0.04)  -- fast loop rate
                             end
                         end
 
@@ -1337,6 +1363,8 @@ do
                 end
             else
                 autoBossFarmEnabled = false
+                -- Optional: immediately stop thread if you want more responsive stopping
+                -- if autoBossFarmThread then task.cancel(autoBossFarmThread) end
             end
         end
     })
