@@ -1,0 +1,1159 @@
+--[[
+
+    WindUI Example (wip)
+    
+]]
+
+
+local WindUI
+
+do
+    local ok, result = pcall(function()
+        return require("./src/Init")
+    end)
+    
+    if ok then
+        WindUI = result
+    else 
+        WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+    end
+end
+
+--[[
+
+WindUI.Creator.AddIcons("solar", {
+    ["CheckSquareBold"] = "rbxassetid://132438947521974",
+    ["CursorSquareBold"] = "rbxassetid://120306472146156",
+    ["FileTextBold"] = "rbxassetid://89294979831077",
+    ["FolderWithFilesBold"] = "rbxassetid://74631950400584",
+    ["HamburgerMenuBold"] = "rbxassetid://134384554225463",
+    ["Home2Bold"] = "rbxassetid://92190299966310",
+    ["InfoSquareBold"] = "rbxassetid://119096461016615",
+    ["PasswordMinimalisticInputBold"] = "rbxassetid://109919668957167",
+    ["SolarSquareTransferHorizontalBold"] = "rbxassetid://125444491429160",
+})--]]
+
+-- Don't need this - because this popup appears after validation of key system
+function createPopup()
+    return WindUI:Popup({
+        Title = "Welcome to the WindUI!",
+        Icon = "bird",
+        Content = "Hello!",
+        Buttons = {
+            {
+                Title = "Hahaha",
+                Icon = "bird",
+                Variant = "Tertiary"
+            },
+            {
+                Title = "Hahaha",
+                Icon = "bird",
+                Variant = "Tertiary"
+            },
+            {
+                Title = "Hahaha",
+                Icon = "bird",
+                Variant = "Tertiary"
+            }
+        }
+    })
+end
+
+
+
+-- */  Window  /* --
+local Window = WindUI:CreateWindow({
+    Title = "CHITO hub  |  Anime Craft",
+    --Author = "by .ftgs • Footagesus",
+    Folder = "AnimeCraftingbyCHITO", --Game folder in workspace
+    Icon = "solar:folder-2-bold-duotone",
+    --IconSize = 22*2,
+    NewElements = true,
+    --Size = UDim2.fromOffset(700,700),
+    
+    HideSearchBar = false,
+    
+    OpenButton = {
+        Title = "Open CHITO hub", -- can be changed
+        CornerRadius = UDim.new(1,0), -- fully rounded
+        StrokeThickness = 3, -- removing outline
+        Enabled = true, -- enable or disable openbutton
+        Draggable = true,
+        OnlyMobile = false,
+        
+        Color = ColorSequence.new( -- gradient
+            Color3.fromHex("#30FF6A"), 
+            Color3.fromHex("#e7ff2f")
+        )
+    },
+    Topbar = {
+        Height = 44,
+        ButtonsType = "Default", -- Default or Mac
+    },
+
+    --[[
+    KeySystem = {
+        Title = "Key System Example  |  WindUI Example",
+        Note = "Key System. Key: 1234",
+        KeyValidator = function(EnteredKey)
+            if EnteredKey == "1234" then
+                createPopup()
+                return true
+            end
+            return false
+            -- return EnteredKey == "1234" -- if key == "1234" then return true else return false end
+        end
+    }
+    ]]
+})
+
+--createPopup()
+
+--Window:SetUIScale(.8)
+
+-- */  Tags  /* --
+do
+    Window:Tag({
+        Title = "v1.0",
+        Icon = "bird",
+        Color = Color3.fromHex("#1c1c1c"),
+        Border = true,
+    })
+end
+
+
+local vu = game:GetService("VirtualUser")
+game.Players.LocalPlayer.Idled:Connect(function()
+    vu:CaptureController()
+    vu:ClickButton2(Vector2.new())
+end)
+
+
+-- */  Theme (soon)  /* --
+do
+    --[[WindUI:AddTheme({
+        Name = "Stylish",
+        
+        Accent = Color3.fromHex("#3b82f6"), 
+        Dialog = Color3.fromHex("#1a1a1a"), 
+        Outline = Color3.fromHex("#3b82f6"),
+        Text = Color3.fromHex("#f8fafc"),  
+        Placeholder = Color3.fromHex("#94a3b8"),
+        Button = Color3.fromHex("#334155"), 
+        Icon = Color3.fromHex("#60a5fa"), 
+        
+        WindowBackground = Color3.fromHex("#0f172a"),
+        
+        TopbarButtonIcon = Color3.fromHex("#60a5fa"),
+        TopbarTitle = Color3.fromHex("#f8fafc"),
+        TopbarAuthor = Color3.fromHex("#94a3b8"),
+        TopbarIcon = Color3.fromHex("#3b82f6"),
+        
+        TabBackground = Color3.fromHex("#1e293b"),    
+        TabTitle = Color3.fromHex("#f8fafc"),
+        TabIcon = Color3.fromHex("#60a5fa"),
+        
+        ElementBackground = Color3.fromHex("#1e293b"),
+        ElementTitle = Color3.fromHex("#f8fafc"),
+        ElementDesc = Color3.fromHex("#cbd5e1"),
+        ElementIcon = Color3.fromHex("#60a5fa"),
+    })--]]
+    
+    -- WindUI:SetTheme("Stylish")
+end
+
+
+-- */  Colors  /* --
+local Purple = Color3.fromHex("#7775F2")
+local Yellow = Color3.fromHex("#ECA201")
+local Green = Color3.fromHex("#10C550")
+local Grey = Color3.fromHex("#83889E")
+local Blue = Color3.fromHex("#257AF7")
+local Red = Color3.fromHex("#EF4F1D")
+
+
+-- */ Other Functions /* --
+local function parseJSON(luau_table, indent, level, visited)
+    indent = indent or 2
+    level = level or 0
+    visited = visited or {}
+    
+    local currentIndent = string.rep(" ", level * indent)
+    local nextIndent = string.rep(" ", (level + 1) * indent)
+    
+    if luau_table == nil then
+        return "null"
+    end
+    
+    local dataType = type(luau_table)
+    
+    if dataType == "table" then
+        if visited[luau_table] then
+            return "\"[Circular Reference]\""
+        end
+        
+        visited[luau_table] = true
+        
+        local isArray = true
+        local maxIndex = 0
+        
+        for k, _ in pairs(luau_table) do
+            if type(k) == "number" and k > maxIndex then
+                maxIndex = k
+            end
+            if type(k) ~= "number" or k <= 0 or math.floor(k) ~= k then
+                isArray = false
+                break
+            end
+        end
+        
+        local count = 0
+        for _ in pairs(luau_table) do
+            count = count + 1
+        end
+        if count ~= maxIndex and isArray then
+            isArray = false
+        end
+        
+        if count == 0 then
+            return "{}"
+        end
+        
+        if isArray then
+            if count == 0 then
+                return "[]"
+            end
+            
+            local result = "[\n"
+            
+            for i = 1, maxIndex do
+                result = result .. nextIndent .. parseJSON(luau_table[i], indent, level + 1, visited)
+                if i < maxIndex then
+                    result = result .. ","
+                end
+                result = result .. "\n"
+            end
+            
+            result = result .. currentIndent .. "]"
+            return result
+        else
+            local result = "{\n"
+            local first = true
+            
+            local keys = {}
+            for k in pairs(luau_table) do
+                table.insert(keys, k)
+            end
+            table.sort(keys, function(a, b)
+                if type(a) == type(b) then
+                    return tostring(a) < tostring(b)
+                else
+                    return type(a) < type(b)
+                end
+            end)
+            
+            for _, k in ipairs(keys) do
+                local v = luau_table[k]
+                if not first then
+                    result = result .. ",\n"
+                else
+                    first = false
+                end
+                
+                if type(k) == "string" then
+                    result = result .. nextIndent .. "\"" .. k .. "\": "
+                else
+                    result = result .. nextIndent .. "\"" .. tostring(k) .. "\": "
+                end
+                
+                result = result .. parseJSON(v, indent, level + 1, visited)
+            end
+            
+            result = result .. "\n" .. currentIndent .. "}"
+            return result
+        end
+    elseif dataType == "string" then
+        local escaped = luau_table:gsub("\\", "\\\\")
+        escaped = escaped:gsub("\"", "\\\"")
+        escaped = escaped:gsub("\n", "\\n")
+        escaped = escaped:gsub("\r", "\\r")
+        escaped = escaped:gsub("\t", "\\t")
+        
+        return "\"" .. escaped .. "\""
+    elseif dataType == "number" then
+        return tostring(luau_table)
+    elseif dataType == "boolean" then
+        return luau_table and "true" or "false"
+    elseif dataType == "function" then
+        return "\"function\""
+    else
+        return "\"" .. dataType .. "\""
+    end
+end
+
+local function tableToClipboard(luau_table, indent)
+    indent = indent or 4
+    local jsonString = parseJSON(luau_table, indent)
+    setclipboard(jsonString)
+    return jsonString
+end
+
+
+
+
+-- */  Elements Section  /* --
+local ElementsSection = Window:Section({
+    Title = "Elements",
+})
+local ConfigUsageSection = Window:Section({
+    Title = "Config Usage",
+})
+local OtherSection = Window:Section({
+    Title = "Other",
+})
+
+
+--------------------- FUNCTIONS and stuff ---------------------------
+
+local AutoRolling = false
+local SelectedTargets = {}
+local AutoBuying = false
+local AutoBuyToggle -- we'll assign it later
+
+local CurrentPlot = nil
+
+local ElementsList = {
+    "Fire", "Water", "Earth", "Air", "Electric", "Ice", "Light", "Gravity",
+    "Nature", "Poison", "Metal", "Shadow", "Time", "Space", "Heart", "Celestial", "Ghost"
+}
+
+local ElementData = {
+    Fire      = { price = 350,        rarity = "common"    },
+    Water     = { price = 500,        rarity = "common"    },
+    Earth     = { price = 1000,       rarity = "common"    },
+    Air       = { price = 4500,       rarity = "uncommon"  },
+    Electric  = { price = 10500,      rarity = "rare"      },
+    Ice       = { price = 80000,      rarity = "epic"      },
+    Light     = { price = 450000,     rarity = "epic"      },
+    Gravity   = { price = 2500000,    rarity = "legendary" },
+    Nature    = { price = 15000000,   rarity = "legendary" },
+    Poison    = { price = 30000000,   rarity = "legendary" },
+    Metal     = { price = 100000000,  rarity = "legendary" },
+    Shadow    = { price = 500000000,  rarity = "legendary" },
+    Time      = { price = 1000000000, rarity = "mythic"    },
+    Space     = { price = 10000000000,rarity = "mythic"    },
+    Heart     = { price = 750000000000, rarity = "mythic" },
+    Celestial = { price = 10000000000000, rarity = "mythic" },
+    Ghost     = { price = 3000000000000000, rarity = "mythic" }
+}
+
+-- Find your plot by checking the GUI text
+local LocalPlayer = game.Players.LocalPlayer
+local MyUsername = LocalPlayer.Name:lower()
+
+local function GetPlayerPlot()
+    local success, result = pcall(function()
+        return game:GetService("ReplicatedStorage")
+            :WaitForChild("client", 10)
+            :WaitForChild("Services", 10)
+            :WaitForChild("PlotService", 10)
+            :WaitForChild("RF", 10)
+            :WaitForChild("GetPlayerPlot", 10)
+            :InvokeServer()
+    end)
+    
+    if not success then return nil end
+    
+    if typeof(result) == "table" and result.model and result.model:IsA("Model") then
+        return result.model.Name
+    end
+    
+    -- Fallback scan
+    for _, v in pairs(result) do
+        if typeof(v) == "Instance" and v.Parent == workspace.Plots then
+            return v.Name
+        end
+    end
+    
+    return nil
+end
+
+-- Get plot as soon as script runs
+task.spawn(function()
+    CurrentPlot = GetPlayerPlot()
+    if CurrentPlot then
+        print("Auto Roll → Your plot detected: " .. CurrentPlot)
+    end
+end)
+
+-- Pachi Pucha Helper Functions
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local function GetMoney()
+    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+    if not leaderstats then return 0 end
+    local value = leaderstats:FindFirstChild("Value")
+    return value and value.Value or 0
+end
+
+local function BuyElement()
+    if not CurrentPlot then 
+        warn("BuyElement: No CurrentPlot set")
+        return false 
+    end
+    
+    local plot = workspace.Plots:FindFirstChild(CurrentPlot)
+    if not plot then 
+        warn("BuyElement: Plot not found - " .. CurrentPlot)
+        return false 
+    end
+    
+    local elementFolder = plot:FindFirstChild("element")
+    if not elementFolder then 
+        warn("BuyElement: element folder not found")
+        return false 
+    end
+    
+    local elementPart = elementFolder:FindFirstChild("elementPart")
+    if not elementPart then 
+        warn("BuyElement: elementPart not found")
+        return false 
+    end
+    
+    local prompt = elementPart:FindFirstChildOfClass("ProximityPrompt")
+    if not prompt then 
+        warn("BuyElement: No ProximityPrompt found in elementPart")
+        return false 
+    end
+    
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character then 
+        warn("BuyElement: No character")
+        return false 
+    end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then 
+        warn("BuyElement: No HumanoidRootPart")
+        return false 
+    end
+    
+    -- Store original position
+    local originalCFrame = rootPart.CFrame
+    
+    -- Teleport directly above the elementPart (safe position, usually within 10-20 studs)
+    local targetPosition = elementPart.Position + Vector3.new(0, 5, 0)  -- 5 studs above to avoid clipping
+    rootPart.CFrame = CFrame.new(targetPosition, elementPart.Position)  -- Look at element too
+    
+    -- Brief network wait
+    task.wait(0.1)
+    
+    -- Fire the prompt
+    fireproximityprompt(prompt)
+    print("BuyElement: Teleported → Fired ProximityPrompt → Returning")
+    
+    -- Teleport back immediately
+    task.wait(0.05)
+    rootPart.CFrame = originalCFrame
+    
+    return true
+end
+
+local function DoOneManualRoll()
+    if not CurrentPlot then return end
+    
+    local plot = workspace.Plots:FindFirstChild(CurrentPlot)
+    if not plot then return end
+    
+    local rollButton = plot:FindFirstChild("ElementMachine")
+                    and plot.ElementMachine:FindFirstChild("button") -- your roll button
+    
+    if not rollButton then return end
+    
+    local clickDetector = rollButton:FindFirstChild("ClickDetector")
+    if clickDetector then
+        print("Doing one forced roll (not enough money)")
+        fireclickdetector(clickDetector)
+    end
+end
+
+local function GetCurrentElement(plotName)
+    if not plotName then return nil end
+    local plot = workspace.Plots:FindFirstChild(plotName)
+    if not plot then return nil end
+
+    local elementFolder = plot:FindFirstChild("element")
+    if not elementFolder then return nil end
+
+    local elementPart = elementFolder:FindFirstChild("elementPart")
+    if not elementPart then return nil end
+
+    local billboard = elementPart:FindFirstChild("elementBillboard")
+    if not billboard then return nil end
+
+    -- Most common case: there's a TextLabel named "name"
+    local nameLabel = billboard:FindFirstChild("name")
+    if nameLabel and nameLabel:IsA("TextLabel") then
+        return nameLabel.Text
+    end
+
+    -- Fallback: any TextLabel inside the billboard
+    local anyLabel = billboard:FindFirstChildWhichIsA("TextLabel")
+    return anyLabel and anyLabel.Text or nil
+end
+
+local function StartAutoRoll()
+    if AutoRolling then return end
+
+    AutoRolling = true
+    CurrentPlot = GetPlayerPlot()
+
+    if not CurrentPlot then
+        WindUI:Notify({
+            Title = "Auto Roll",
+            Content = "Could not find your plot",
+            Icon = "x",
+            Duration = 4
+        })
+        AutoRolling = false
+        if AutoRollToggle then AutoRollToggle:Set(false) end
+        return
+    end
+
+    local targets = SelectedTargets or {}
+    print("AutoRoll started | Plot:", CurrentPlot, "| Targets:", table.concat(targets, ", "))
+
+    if #targets == 0 then
+        WindUI:Notify({
+            Title = "Auto Roll",
+            Content = "Select at least one target element first!",
+            Icon = "x",
+            Duration = 4
+        })
+        AutoRolling = false
+        if AutoRollToggle then AutoRollToggle:Set(false) end
+        return
+    end
+
+    local isPaused = false           -- true only when desired element is present
+    local notifiedThisTarget = false -- prevents spamming notification
+
+    task.spawn(function()
+        while AutoRolling do
+            local plot = workspace.Plots:FindFirstChild(CurrentPlot)
+            if not plot then
+                CurrentPlot = GetPlayerPlot()
+                task.wait(1)
+                continue
+            end
+
+            local elementFolder = plot:FindFirstChild("element")
+            if not elementFolder then
+                task.wait(0.5)
+                continue
+            end
+
+            local elementPart = elementFolder:FindFirstChild("elementPart")
+
+            -- Folder became empty → something happened (bought, skipped, reset...)
+            if not elementPart then
+                if isPaused then
+                    print("Element folder emptied → resuming auto roll")
+                    isPaused = false
+                    notifiedThisTarget = false  -- reset for next target
+                end
+            end
+
+            -- Only check element if something is present
+            if elementPart then
+                local current = GetCurrentElement(CurrentPlot)
+                if current and table.find(targets, current) then
+                    isPaused = true
+                    
+                    -- Show notification ONLY ONCE per target appearance
+                    if not notifiedThisTarget then
+                        WindUI:Notify({
+                            Title = "Target Element Rolled!",
+                            Content = "Got: " .. current .. "!",
+                            Icon = "check",
+                            Duration = 6
+                        })
+                        notifiedThisTarget = true
+                    end
+
+                    -- ─────────────── Auto Buy logic ───────────────
+                    if AutoBuying then
+                        local priceInfo = ElementData[current]
+                        local price = priceInfo and priceInfo.price or math.huge
+                        local money = GetMoney()
+
+                        if money >= price then
+                            WindUI:Notify({
+                                Title = "Auto Buy",
+                                Content = "Buying " .. current .. " (" .. price .. ")",
+                                Icon = "shopping-cart",
+                                Duration = 5
+                            })
+                            BuyElement()   -- your buy function
+                        else
+                            WindUI:Notify({
+                                Title = "Not enough $",
+                                Content = current .. " costs " .. price .. " | You have " .. money,
+                                Icon = "alert-triangle",
+                                Duration = 5
+                            })
+                            -- Since we can't buy → do one roll to keep going
+                            local button = plot:FindFirstChild("ElementMachine") 
+                                        and plot.ElementMachine:FindFirstChild("button")
+                            if button then
+                                local cd = button:FindFirstChild("ClickDetector")
+                                if cd then
+                                    print("AutoBuy: not enough money → forcing one roll")
+                                    fireclickdetector(cd)
+                                end
+                            end
+                        end
+                    end
+                    -- ──────────────────────────────────────────────
+                end
+            end
+
+            -- Roll only if not paused
+            if not isPaused then
+                local button = plot:FindFirstChild("ElementMachine") and plot.ElementMachine:FindFirstChild("button")
+                if not button then
+                    warn("ElementMachine.button not found in " .. plot.Name)
+                    task.wait(1)
+                    continue
+                end
+
+                local clickDetector = button:FindFirstChild("ClickDetector")
+                if clickDetector then
+                    print("Firing ClickDetector on " .. plot.Name)
+                    fireclickdetector(clickDetector)
+                else
+                    warn("ClickDetector not found in " .. button:GetFullName())
+                    task.wait(1)
+                    continue
+                end
+
+                -- Wait for roll to finish
+                local rollDone = false
+
+                local connAdded = elementFolder.ChildAdded:Connect(function(child)
+                    if child.Name == "destroying" then
+                        print("destroying appeared → roll started")
+                    end
+                end)
+
+                local connRemoved = elementFolder.ChildRemoved:Connect(function(child)
+                    if child.Name == "destroying" then
+                        rollDone = true
+                        print("destroying removed → roll finished")
+                    end
+                end)
+
+                local timeout = tick() + 0.01  -- ← keeping your original value
+                repeat
+                    task.wait(0.1) -- never lower this gng..
+                until rollDone or tick() > timeout or not AutoRolling
+
+                connAdded:Disconnect()
+                connRemoved:Disconnect()
+
+                if not rollDone then
+                    warn("Roll timeout on " .. plot.Name)
+                end
+
+                task.wait(0.1)  -- your fast delay
+            else
+                -- Pauses, checks every 0.5s if folder empties
+                task.wait(0.5)
+            end
+        end
+
+        print("AutoRoll fully stopped my nigga")
+    end)
+end
+
+local function StopAutoRoll()
+    AutoRolling = false
+end
+
+
+--[[  idk. VideoFrame is not working with custom video on exploits
+      I don't know why
+    
+-- */  Video Tab  /* --
+do
+    local VideoTab = ElementsSection:Tab({
+        Title = "Video",
+        Icon = "video",
+    })
+    
+    VideoTab:Video({
+        Title = "My Video Hahahah", -- optional
+        Author = ".ftgs", -- optional
+        Video = "https://cdn.discordapp.com/attachments/1337368451865645096/1402703845657673878/VID_20250616_180732_158.webm?ex=68fc5f01&is=68fb0d81&hm=f4f0a88dbace2d3cef92535b2e57effae6d4c4fc444338163faafa7f3fdac529&"
+    })
+end
+
+--]]
+
+
+-- */ Main Tab /* --
+do
+    local MainTab = ElementsSection:Tab({
+        Title = "Main",
+        Icon = "solar:home-2-bold",
+        IconColor = Grey,
+        Border = true,
+    })
+
+    local MainSection1 = MainTab:Section({
+        Title = "Elements",
+        Opened = true
+    })
+
+    -- Dropdown with better handling
+    local TargetElements = MainTab:Dropdown({
+        Title = "Target Elements",
+        Flag = "TargetElements",
+        Values = ElementsList,
+        Value = nil,               -- initial value
+        AllowNone = true,
+        Multi = true,
+        Callback = function(newValue)
+            -- WindUI multi dropdown usually passes table for multi, string/single for single
+            if type(newValue) == "table" then
+                SelectedTargets = newValue
+            elseif newValue then
+                SelectedTargets = {newValue}
+            else
+                SelectedTargets = {}
+            end
+            
+            print("Targets updated to:", table.concat(SelectedTargets, ", "))
+        end
+    })
+
+    MainTab:Space()
+
+    local AutoRollToggle = MainTab:Toggle({
+        Title = "Auto Roll",
+        Desc = "if this doesn't work as intended, it means you have too high ping, switch server or play on private server",
+        Value = false,
+        Callback = function(enabled)
+            if enabled then
+                task.spawn(StartAutoRoll)
+            else
+                StopAutoRoll()
+            end
+        end
+    })
+
+    local AutoBuyToggle = MainTab:Toggle({
+        Title = "Auto Buy Target",
+        Desc = "Buys selected element if you have enough money.",
+        Value = false,
+        Callback = function(enabled)
+            AutoBuying = enabled
+            
+            if enabled and not AutoRolling then
+                WindUI:Notify({
+                    Title = "Auto Buy",
+                    Content = "Auto Buy is on but Auto Roll is off.\nAuto Buy works best together with Auto Roll.",
+                    Duration = 6
+                })
+            end
+            
+            if enabled then
+                print("Auto Buy ENABLED")
+            else
+                print("Auto Buy DISABLED")
+            end
+        end
+    })
+end
+
+-- */  Config Usage  /* --
+
+if not game:GetService("RunService"):IsStudio() then
+    do -- config elements
+        local ConfigElementsTab = ConfigUsageSection:Tab({
+            Title = "Config Elements",
+            Icon = "solar:file-text-bold",
+            IconColor = Blue,
+            IconShape = nil,
+            Border = true,
+        })
+        
+        -- All elements are taken from the official documentation: https://footagesus.github.io/WindUI-Docs/docs
+        
+        -- Saving elements to the config using `Flag`
+        
+        
+        ConfigElementsTab:Space()
+        
+        ConfigElementsTab:Keybind({
+            Flag = "KeybindTest",
+            Title = "Keybind",
+            Desc = "Keybind to open ui",
+            Value = "K",
+            Callback = function(v)
+                Window:SetToggleKey(Enum.KeyCode[v])
+            end
+        })
+        
+        ConfigElementsTab:Space()
+    end
+        
+    
+    do -- config panel
+        local ConfigTab = ConfigUsageSection:Tab({
+            Title = "Config Usage",
+            Icon = "solar:folder-with-files-bold",
+            IconColor = Purple,
+            IconShape = nil,
+            Border = true,
+        })
+
+        local ConfigManager = Window.ConfigManager
+        local ConfigName = "default"
+
+        local ConfigNameInput = ConfigTab:Input({
+            Title = "Config Name",
+            Icon = "file-cog",
+            Callback = function(value)
+                ConfigName = value
+            end
+        })
+
+        ConfigTab:Space()
+        
+        -- local AutoLoadToggle = ConfigTab:Toggle({
+        --     Title = "Enable Auto Load to Selected Config",
+        --     Value = false,
+        --     Callback = function(v)
+        --         Window.CurrentConfig:SetAutoLoad(v)
+        --     end
+        -- })
+
+        -- ConfigTab:Space()
+
+        local AllConfigs = ConfigManager:AllConfigs()
+        local DefaultValue = table.find(AllConfigs, ConfigName) and ConfigName or nil
+
+        local AllConfigsDropdown = ConfigTab:Dropdown({
+            Title = "All Configs",
+            Desc = "Select existing configs",
+            Values = AllConfigs,
+            Value = DefaultValue,
+            Callback = function(value)
+                ConfigName = value
+                ConfigNameInput:Set(value)
+                
+                AutoLoadToggle:Set(ConfigManager:GetConfig(ConfigName).AutoLoad or false)
+            end
+        })
+
+        ConfigTab:Space()
+
+        ConfigTab:Button({
+            Title = "Save Config",
+            Icon = "",
+            Justify = "Center",
+            Callback = function()
+                Window.CurrentConfig = ConfigManager:Config(ConfigName)
+                if Window.CurrentConfig:Save() then
+                    WindUI:Notify({
+                        Title = "Config Saved",
+                        Content = "Config '" .. ConfigName .. "' saved",
+                        Icon = "check",
+                    })
+                end
+                
+                AllConfigsDropdown:Refresh(ConfigManager:AllConfigs())
+            end
+        })
+
+        ConfigTab:Space()
+
+        ConfigTab:Button({
+            Title = "Load Config",
+            Icon = "",
+            Justify = "Center",
+            Callback = function()
+                Window.CurrentConfig = ConfigManager:CreateConfig(ConfigName)
+                if Window.CurrentConfig:Load() then
+                    WindUI:Notify({
+                        Title = "Config Loaded",
+                        Content = "Config '" .. ConfigName .. "' loaded",
+                        Icon = "refresh-cw",
+                    })
+                end
+            end
+        })
+
+        ConfigTab:Space()
+
+        ConfigTab:Button({
+            Title = "Print AutoLoad Configs",
+            Icon = "",
+            Justify = "Center",
+            Callback = function()
+                print(HttpService:JSONDecode(ConfigManager:GetAutoLoadConfigs()))
+            end
+        })
+    end
+end
+
+
+
+
+-- */  Other  /* --
+do
+    local InviteCode = "jTYJtXMZgc"
+    local DiscordAPI = "https://discord.com/api/v10/invites/" .. InviteCode .. "?with_counts=true&with_expiration=true"
+    local success, Response = pcall(function()
+        return WindUI.cloneref(game:GetService("HttpService")):JSONDecode(WindUI.Creator.Request({
+            Url = DiscordAPI,
+            Method = "GET",
+            Headers = {
+                ["User-Agent"] = "WindUI/Example",
+                ["Accept"] = "application/json"
+            }
+        }).Body)
+    end)
+
+    local DiscordTab = OtherSection:Tab({
+        Title = "Discord",
+        Border = true,
+    })
+
+    if success and Response and Response.guild then
+        DiscordTab:Section({
+            Title = "Join our Discord server!",
+            TextSize = 20,
+        })
+        DiscordTab:Paragraph({
+            Title = tostring(Response.guild.name),
+            Desc = tostring(Response.guild.description or "Join in-case of needing support."),
+            Image = "https://cdn.discordapp.com/icons/" .. Response.guild.id .. "/" .. Response.guild.icon .. ".png?size=1024",
+            -- Optional: change banner if you have one, or remove Thumbnail line
+            Thumbnail = "https://cdn.discordapp.com/banners/" .. Response.guild.id .. "/" .. (Response.guild.banner or "") .. ".png?size=512",
+            ImageSize = 48,
+            Buttons = {
+                {
+                    Title = "Copy Invite Link",
+                    Icon = "link",
+                    Callback = function()
+                        setclipboard("https://discord.gg/" .. InviteCode)
+                    end
+                }
+            }
+        })
+    else
+        -- Fallback if API fails or invalid code
+        DiscordTab:Section({ Title = "Join our Discord!", TextSize = 20 })
+        DiscordTab:Paragraph({
+            Title = "CHITO Hub Community",
+            Desc = "Join for support",
+            Buttons = {
+                {
+                    Title = "Copy Invite",
+                    Icon = "link",
+                    Callback = function()
+                        setclipboard("https://discord.gg/" .. InviteCode)
+                    end
+                }
+            }
+        })
+    end
+end
+
+do
+    local suggestionTab = OtherSection:Tab({
+        Title = "Suggestions",
+        Border = true,
+    })
+
+    local suggestionSec1 = suggestionTab:Section({
+        Title = "Send suggestions!",
+    })
+
+
+    -- ===============================
+    --  SUGGESTIONS WEBHOOK SYSTEM
+    -- ===============================
+
+    local Players = game:GetService("Players")
+    local HttpService = game:GetService("HttpService")
+    local LocalPlayer = Players.LocalPlayer
+
+    -- 🔧 CONFIG
+    local WEBHOOK_URL = "https://discord.com/api/webhooks/1461430346133405891/NVDogiK4AvwHBNRbtynzpBQFhb4KzTQQ1tIlBJ3coY4S79g9OE4a34NknqMDdj7ztU0m"
+    local COOLDOWN_SECONDS = 60 * 60 -- 1 hour
+
+    -- ⏱ Cooldown tracker (session-based)
+    local lastSent = 0
+
+    -- 🌐 Executor HTTP resolver
+    local requestFunc =
+        (syn and syn.request)
+        or http_request
+        or request
+        or (fluxus and fluxus.request)
+
+    -- 🚨 Safety check
+    if not requestFunc then
+        warn("Executor does not support HTTP requests")
+    end
+
+    -- 📤 Send suggestion to Discord
+    local function sendWebhookMessage(message)
+        if type(message) ~= "string" or message == "" then
+            return false, "Message cannot be empty"
+        end
+
+        if #message > 1500 then
+            return false, "Message too long (max ~1500 chars)"
+        end
+
+        local now = os.time()
+        if now - lastSent < COOLDOWN_SECONDS then
+            local remaining = COOLDOWN_SECONDS - (now - lastSent)
+            return false, "Cooldown active (" .. remaining .. "s left)"
+        end
+
+        if not requestFunc then
+            return false, "HTTP not supported by executor"
+        end
+
+        -- 🎨 Discord Embed Payload
+        local payload = {
+            embeds = {
+                {
+                    title = "📩 New Suggestion FROM ANIME CRAFT",
+                    color = 0x30ff6a, -- green
+                    fields = {
+                        {
+                            name = "👤 Player",
+                            value = LocalPlayer.Name,
+                            inline = true
+                        },
+                        {
+                            name = "🆔 UserId",
+                            value = tostring(LocalPlayer.UserId),
+                            inline = true
+                        },
+                        {
+                            name = "💬 Message",
+                            value = message,
+                            inline = false
+                        }
+                    },
+                    footer = {
+                        text = "CHITO Hub • Suggestions System"
+                    },
+                    timestamp = DateTime.now():ToIsoDate()
+                }
+            }
+        }
+
+        local response = requestFunc({
+            Url = WEBHOOK_URL,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = HttpService:JSONEncode(payload)
+        })
+
+        -- Discord returns 204 No Content on success
+        if response and (response.StatusCode == 204 or response.StatusCode == 200) then
+            lastSent = now
+            return true
+        end
+
+        return false, response and response.Body or "Webhook failed"
+    end
+
+    -- ===============================
+    --  WINDUI INPUT + BUTTON
+    -- ===============================
+
+    local suggestionText = ""
+
+    suggestionTab:Input({
+        Flag = "Suggestion_Text",
+        Title = "Send suggestions & bugs",
+        Desc = "1 hour cooldown • Logged to Discord",
+        Value = "",
+        InputIcon = "bird",
+        Type = "Textarea",
+        Placeholder = "Type your suggestion here...",
+        Callback = function(input)
+            suggestionText = input
+        end
+    })
+
+    suggestionTab:Button({
+        Title = "Send Suggestion",
+        Icon = "send",
+        Color = Color3.fromHex("#30ff6a"),
+        Callback = function()
+            local ok, msg = sendWebhookMessage(suggestionText)
+
+            if ok then
+                WindUI:Notify({
+                    Title = "Suggestion Sent ✅",
+                    Content = "Thanks! Your message was logged.",
+                    Icon = "check",
+                    Duration = 3
+                })
+                suggestionText = ""
+            else
+                WindUI:Notify({
+                    Title = "Error ❌",
+                    Content = msg,
+                    Icon = "x",
+                    Duration = 4
+                })
+            end
+        end
+    })
+end
+
+
+-- */ Using Nebula Icons /* --
+--[[
+do
+    local NebulaIcons = loadstring(game:HttpGetAsync("https://raw.nebulasoftworks.xyz/nebula-icon-library-loader"))()
+    
+    -- Adding icons (e.g. Fluency)
+    WindUI.Creator.AddIcons("fluency",    NebulaIcons.Fluency)
+    --               ^ Icon name          ^ Table of Icons
+    
+    -- You can also add nebula icons
+    WindUI.Creator.AddIcons("nebula",    NebulaIcons.nebulaIcons)
+    
+    -- Usage ↑ ↓
+    
+    local TestSection = Window:Section({
+        Title = "Custom icons usage test (nebula)",
+        Icon = "nebula:nebula",
+    })
+end
+]]
+--[[
+
+local EndButStartTab = Window:Tab({
+    Title = "EndButStartTab",
+    -- u can use `Before` or `After`
+    Before = AboutTab, -- put this tab Before AboutTab
+    
+})
+--]]
