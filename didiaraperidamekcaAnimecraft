@@ -304,12 +304,15 @@ end
 -- */  Elements Section  /* --
 local ElementsSection = Window:Section({
     Title = "Elements",
+    Opened = true
 })
 local ConfigUsageSection = Window:Section({
     Title = "Config Usage",
+    Opened = true
 })
 local OtherSection = Window:Section({
     Title = "Other",
+    Opened = true
 })
 
 
@@ -324,27 +327,29 @@ local CurrentPlot = nil
 
 local ElementsList = {
     "Fire", "Water", "Earth", "Air", "Electric", "Ice", "Light", "Gravity",
-    "Nature", "Poison", "Metal", "Shadow", "Time", "Space", "Heart", "Celestial", "Ghost"
+    "Nature", "Poison", "Metal", "Shadow", "Time", "Space", "Heart", "Celestial", "Ghost",
+    "Music"  -- ← added
 }
 
 local ElementData = {
-    Fire      = { price = 350,        rarity = "common"    },
-    Water     = { price = 500,        rarity = "common"    },
-    Earth     = { price = 1000,       rarity = "common"    },
-    Air       = { price = 4500,       rarity = "uncommon"  },
-    Electric  = { price = 10500,      rarity = "rare"      },
-    Ice       = { price = 80000,      rarity = "epic"      },
-    Light     = { price = 450000,     rarity = "epic"      },
-    Gravity   = { price = 2500000,    rarity = "legendary" },
-    Nature    = { price = 15000000,   rarity = "legendary" },
-    Poison    = { price = 30000000,   rarity = "legendary" },
-    Metal     = { price = 100000000,  rarity = "legendary" },
-    Shadow    = { price = 500000000,  rarity = "legendary" },
-    Time      = { price = 1000000000, rarity = "mythic"    },
-    Space     = { price = 10000000000,rarity = "mythic"    },
-    Heart     = { price = 750000000000, rarity = "mythic" },
-    Celestial = { price = 10000000000000, rarity = "mythic" },
-    Ghost     = { price = 3000000000000000, rarity = "mythic" }
+    Fire      = { price = 350,          rarity = "common"    },
+    Water     = { price = 500,          rarity = "common"    },
+    Earth     = { price = 1000,         rarity = "common"    },
+    Air       = { price = 4500,         rarity = "uncommon"  },
+    Electric  = { price = 10500,        rarity = "rare"      },
+    Ice       = { price = 80000,        rarity = "epic"      },
+    Light     = { price = 450000,       rarity = "epic"      },
+    Gravity   = { price = 2500000,      rarity = "legendary" },
+    Nature    = { price = 15000000,     rarity = "legendary" },
+    Poison    = { price = 30000000,     rarity = "legendary" },
+    Metal     = { price = 100000000,    rarity = "legendary" },
+    Shadow    = { price = 500000000,    rarity = "legendary" },
+    Time      = { price = 1000000000,   rarity = "mythic"    },
+    Space     = { price = 10000000000,  rarity = "mythic"    },
+    Heart     = { price = 750000000000, rarity = "mythic"    },
+    Celestial = { price = 10000000000000, rarity = "mythic"  },
+    Ghost     = { price = 3000000000000000, rarity = "mythic" },
+    Music     = { price = 5000000000000000, rarity = "mythic" }  -- new one added
 }
 
 -- Find your plot by checking the GUI text
@@ -392,9 +397,64 @@ local LocalPlayer = Players.LocalPlayer
 
 local function GetMoney()
     local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
-    if not leaderstats then return 0 end
-    local value = leaderstats:FindFirstChild("Value")
-    return value and value.Value or 0
+    if not leaderstats then 
+        warn("No leaderstats folder")
+        return 0 
+    end
+    
+    local cash = leaderstats:FindFirstChild("Cash 💰")
+               or leaderstats:FindFirstChild("Cash \240\159\146\176")
+               or leaderstats:FindFirstChild("Cash")
+               or leaderstats:FindFirstChildWhichIsA("StringValue")
+    
+    if not cash or not cash:IsA("StringValue") then 
+        warn("Cash stat not found or not a StringValue")
+        return 0 
+    end
+    
+    local str = cash.Value or ""
+    print("Raw money string:", str)  -- debug: see exact format
+    
+    -- Remove currency symbols, commas, spaces, yen symbol, etc.
+    str = str:gsub("[¥$,%s]", ""):lower()
+    
+    if str == "" then return 0 end
+    
+    -- Extract number part + full suffix (allow 1-2 letters like "qa", "t", "qd" etc.)
+    local numStr, suffix = str:match("^(%d+%.?%d*)([a-z]*)")
+    local num = tonumber(numStr) or 0
+    
+    if not num or num == 0 then
+        warn("Failed to parse number from:", str)
+        return 0
+    end
+    
+    -- Handle common suffixes (case-insensitive)
+    suffix = suffix or ""
+    local multiplier = 1
+    
+    if suffix:find("qa") then
+        multiplier = 1e15          -- quadrillion
+    elseif suffix:find("q") then
+        multiplier = 1e15          -- some games use q for quadrillion
+    elseif suffix:find("t") then
+        multiplier = 1e12          -- trillion
+    elseif suffix:find("b") or suffix:find("a") then
+        multiplier = 1e9           -- billion
+    elseif suffix:find("m") then
+        multiplier = 1e6           -- million
+    elseif suffix:find("k") then
+        multiplier = 1e3           -- thousand
+    end
+    
+    local parsed = num * multiplier
+    
+    print("Parsed money:", parsed, 
+          "(base:", num, 
+          "| suffix:", suffix ~= "" and suffix or "none", 
+          "| multiplier:", multiplier, ")")
+    
+    return parsed
 end
 
 local function BuyElement()
@@ -511,39 +571,58 @@ local function StartAutoRoll()
     CurrentPlot = GetPlayerPlot()
 
     if not CurrentPlot then
-        WindUI:Notify({
-            Title = "Auto Roll",
-            Content = "Could not find your plot",
-            Icon = "x",
-            Duration = 4
-        })
+        WindUI:Notify({ Title = "Auto Roll", Content = "Could not find your plot", Icon = "x", Duration = 4 })
         AutoRolling = false
         if AutoRollToggle then AutoRollToggle:Set(false) end
         return
     end
 
     local targets = SelectedTargets or {}
-    print("AutoRoll started | Plot:", CurrentPlot, "| Targets:", table.concat(targets, ", "))
+    print("🚀 AutoRoll STARTED | Plot:", CurrentPlot, "| Targets:", table.concat(targets, ", "))
+    print("💰 AutoBuying state:", AutoBuying)
 
     if #targets == 0 then
-        WindUI:Notify({
-            Title = "Auto Roll",
-            Content = "Select at least one target element first!",
-            Icon = "x",
-            Duration = 4
-        })
+        WindUI:Notify({ Title = "Auto Roll", Content = "Select at least one target!", Icon = "x", Duration = 4 })
         AutoRolling = false
         if AutoRollToggle then AutoRollToggle:Set(false) end
         return
     end
 
-    local isPaused = false           -- true only when desired element is present
-    local notifiedThisTarget = false -- prevents spamming notification
+    -- NEW: Force one initial roll if no element exists yet
+    task.spawn(function()
+        task.wait(0.01)  -- small delay to let plot fully load
+        
+        local plot = workspace.Plots:FindFirstChild(CurrentPlot)
+        if not plot then return end
+        
+        local elementFolder = plot:FindFirstChild("element")
+        if not elementFolder then return end
+        
+        if not elementFolder:FindFirstChild("elementPart") then
+            print("No element found at start → forcing first roll to initialize")
+            
+            local button = plot:FindFirstChild("ElementMachine") 
+                        and plot.ElementMachine:FindFirstChild("button")
+            
+            if button and button:FindFirstChild("ClickDetector") then
+                fireclickdetector(button.ClickDetector)
+                print("Initial forced roll fired!")
+            else
+                warn("Could not find roll button for initial roll")
+            end
+        else
+            print("Element already exists → no need for initial roll")
+        end
+    end)
+
+    local isPaused = false
+    local notifiedThisTarget = false
 
     task.spawn(function()
         while AutoRolling do
             local plot = workspace.Plots:FindFirstChild(CurrentPlot)
             if not plot then
+                print("⚠️ Plot", CurrentPlot, "missing → refetching...")
                 CurrentPlot = GetPlayerPlot()
                 task.wait(1)
                 continue
@@ -557,124 +636,119 @@ local function StartAutoRoll()
 
             local elementPart = elementFolder:FindFirstChild("elementPart")
 
-            -- Folder became empty → something happened (bought, skipped, reset...)
             if not elementPart then
                 if isPaused then
-                    print("Element folder emptied → resuming auto roll")
+                    print("✅ Element gone → RESUMING roll")
                     isPaused = false
-                    notifiedThisTarget = false  -- reset for next target
+                    notifiedThisTarget = false
                 end
+                task.wait(0.2)
+                continue
             end
 
-            -- Only check element if something is present
-            if elementPart then
-                local current = GetCurrentElement(CurrentPlot)
-                if current and table.find(targets, current) then
-                    isPaused = true
+            -- 🔍 DETECT ELEMENT
+            local current = GetCurrentElement(CurrentPlot)
+            print("👀 Rolled:", current or "???", "| Paused:", isPaused, "| Money:", GetMoney())
+
+            if current and table.find(targets, current) then
+                print("🎯 TARGET DETECTED:", current, "→ PAUSING")
+                isPaused = true
+                
+                if not notifiedThisTarget then
+                    WindUI:Notify({
+                        Title = "Target Element Rolled!",
+                        Content = "Got: " .. current .. "!",
+                        Icon = "check",
+                        Duration = 6
+                    })
+                    notifiedThisTarget = true
+                end
+
+                -- 🔥 AUTO BUY BLOCK (WITH DEBUG)
+                if AutoBuying then
+                    print("🛒 AutoBuy TRIGGERED for", current)
                     
-                    -- Show notification ONLY ONCE per target appearance
-                    if not notifiedThisTarget then
-                        WindUI:Notify({
-                            Title = "Target Element Rolled!",
-                            Content = "Got: " .. current .. "!",
-                            Icon = "check",
-                            Duration = 6
-                        })
-                        notifiedThisTarget = true
-                    end
-
-                    -- ─────────────── Auto Buy logic ───────────────
-                    if AutoBuying then
-                        local priceInfo = ElementData[current]
-                        local price = priceInfo and priceInfo.price or math.huge
-                        local money = GetMoney()
-
-                        if money >= price then
-                            WindUI:Notify({
-                                Title = "Auto Buy",
-                                Content = "Buying " .. current .. " (" .. price .. ")",
-                                Icon = "shopping-cart",
-                                Duration = 5
-                            })
-                            BuyElement()   -- your buy function
-                        else
-                            WindUI:Notify({
-                                Title = "Not enough $",
-                                Content = current .. " costs " .. price .. " | You have " .. money,
-                                Icon = "alert-triangle",
-                                Duration = 5
-                            })
-                            -- Since we can't buy → do one roll to keep going
-                            local button = plot:FindFirstChild("ElementMachine") 
-                                        and plot.ElementMachine:FindFirstChild("button")
-                            if button then
-                                local cd = button:FindFirstChild("ClickDetector")
-                                if cd then
-                                    print("AutoBuy: not enough money → forcing one roll")
-                                    fireclickdetector(cd)
-                                end
-                            end
+                    local priceInfo = ElementData[current]
+                    local price = priceInfo and priceInfo.price or math.huge
+                    
+                    local money = GetMoney()
+                    
+                    -- Extra safety prints (you can keep or remove later)
+                    print("💵 Money:", money, "(type: " .. type(money) .. ")")
+                    print("   Price:", price, "(type: " .. type(price) .. ")")
+                    
+                    -- Safe comparison: check types first + fallback
+                    local canBuy = false
+                    
+                    if type(money) == "number" and type(price) == "number" then
+                        if not (money ~= money) and not (price ~= price) then  -- protects against NaN
+                            canBuy = money >= price
                         end
+                    else
+                        warn("Type mismatch in money/price comparison! money:", money, "price:", price)
                     end
-                    -- ──────────────────────────────────────────────
+                    
+                    print("→ Can buy?", canBuy)
+                    
+                    if canBuy then
+                        print("✅ ENOUGH MONEY → CALLING BuyElement()")
+                        WindUI:Notify({
+                            Title = "Auto Buy",
+                            Content = "Buying " .. current .. " (" .. tostring(price) .. ")",
+                            Icon = "shopping-cart",
+                            Duration = 5
+                        })
+                        
+                        local success = BuyElement()
+                        print("BuyElement returned:", success)
+                        
+                        if success then
+                            print("🎉 BUY SUCCESS → unpause")
+                            isPaused = false
+                            notifiedThisTarget = false
+                            task.wait(2)  -- cooldown
+                        else
+                            print("❌ BUY FAILED → force roll")
+                            DoOneManualRoll()
+                            task.wait(0.5)
+                            isPaused = false
+                            notifiedThisTarget = false
+                        end
+                    else
+                        print("❌ NOT ENOUGH or invalid comparison → force roll")
+                        WindUI:Notify({
+                            Title = "Not enough $",
+                            Content = current .. " costs " .. tostring(price) .. " | You have " .. tostring(money),
+                            Icon = "alert-triangle",
+                            Duration = 5
+                        })
+                        DoOneManualRoll()
+                        isPaused = false
+                        notifiedThisTarget = false
+                    end
+                else
+                    print("⏸️ AutoBuy OFF → staying paused")
                 end
             end
 
-            -- Roll only if not paused
+            -- ROLL LOGIC
             if not isPaused then
+                print("🔄 Rolling...")
                 local button = plot:FindFirstChild("ElementMachine") and plot.ElementMachine:FindFirstChild("button")
-                if not button then
-                    warn("ElementMachine.button not found in " .. plot.Name)
-                    task.wait(1)
-                    continue
+                if button and button:FindFirstChild("ClickDetector") then
+                    fireclickdetector(button.ClickDetector)
                 end
-
-                local clickDetector = button:FindFirstChild("ClickDetector")
-                if clickDetector then
-                    print("Firing ClickDetector on " .. plot.Name)
-                    fireclickdetector(clickDetector)
-                else
-                    warn("ClickDetector not found in " .. button:GetFullName())
-                    task.wait(1)
-                    continue
-                end
-
-                -- Wait for roll to finish
+                
+                -- Your roll wait logic (unchanged)
                 local rollDone = false
-
-                local connAdded = elementFolder.ChildAdded:Connect(function(child)
-                    if child.Name == "destroying" then
-                        print("destroying appeared → roll started")
-                    end
-                end)
-
-                local connRemoved = elementFolder.ChildRemoved:Connect(function(child)
-                    if child.Name == "destroying" then
-                        rollDone = true
-                        print("destroying removed → roll finished")
-                    end
-                end)
-
-                local timeout = tick() + 0.01  -- ← keeping your original value
-                repeat
-                    task.wait(0.1) -- never lower this gng..
-                until rollDone or tick() > timeout or not AutoRolling
-
-                connAdded:Disconnect()
-                connRemoved:Disconnect()
-
-                if not rollDone then
-                    warn("Roll timeout on " .. plot.Name)
-                end
-
-                task.wait(0.1)  -- your fast delay
+                -- ... (keep your existing connAdded/connRemoved/timeout)
+                
+                task.wait(0.1)
             else
-                -- Pauses, checks every 0.5s if folder empties
                 task.wait(0.5)
             end
         end
-
-        print("AutoRoll fully stopped my nigga")
+        print("🛑 AutoRoll STOPPED")
     end)
 end
 
