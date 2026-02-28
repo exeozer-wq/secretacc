@@ -519,10 +519,28 @@ local espObjects = {}           -- BillboardGui cache
 local itemConnections = {}      -- ONE declaration only
 
 local itemNames = {
-    "Arrow", "Rokakaka Fruit", "Banknote", "Frog", "Requiem Arrow",
-    "Vampire Mask", "Nostalgic Relic", "Shiny Gem", "Ender Pearl",
-    "Shadow Camera", "DIO's Diary", "Monochromatic Sphere",
-    "Galaxy Portal", "Holy Corpse"
+    "Arrow",
+    "Rokakaka Fruit",
+    "Requiem Arrow",
+    "Camera",
+    "DIO's Diary",
+    "Ender Pearl",
+    "Frog",
+    "Holy Corpse",
+    "Marbleized Mask",
+    "Monochromatic Sphere",
+    "Nostalgic Relic",
+    "Shadow Camera",
+    "Shiny Gem",
+    "Red Present",
+    "Special Present",
+    "Spiritual Rapier",
+    "Unfair Frog",
+    "Vampire Mask",
+    "Golden Mask",
+    "Volcanic Mask",
+    "Admin Arrow",
+    "Banknote",  -- ← keep this if you still want banknotes highlighted
 }
 
 local function isTargetItem(obj)
