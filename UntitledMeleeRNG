@@ -321,6 +321,10 @@ local OtherSection = Window:Section({
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+-- Remote cache (add this block)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local ConfirmAscend = Remotes:WaitForChild("ConfirmAscend")
 
 local autoLootRunning = false
 local lootThread = nil
@@ -545,6 +549,179 @@ function mobAura.Stop()
                 end
             end
         end
+    end
+end
+
+-- Helper function for instant CFrame teleport
+local function teleportTo(cframe)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if hrp then
+        print("[Teleport] Teleporting to: " .. tostring(cframe.Position))
+        hrp.CFrame = cframe
+    else
+        print("[Teleport] No HumanoidRootPart — can't teleport")
+    end
+end
+
+
+local dungeons = {
+    ["Sand Titan [Desert]"] = CFrame.new(648.921082, 26.8249378, -830.604553),
+    ["Ice Giant [Snow]"] = CFrame.new(875.647827, 68.9515305, -1796.58374),
+    ["Jungle Maniac [Jungle]"] = CFrame.new(928.761475, 90.7206039, -2850.30103),
+    ["Magma Reaper [Volcano]"] = CFrame.new(275.833832, 18.8742657, -3729.3562),
+    ["Shadow Reaper [Shadow Dungeon]"] = CFrame.new(250.160614, -50.9743614, -5904.80664)
+}
+
+-- Placeholder lobby position (adjust to a safe spot in Grassland/start area if needed, e.g., near spawn)
+local lobbyCFrame = CFrame.new(154, 20, 154)  -- Example; test and replace with accurate coords
+
+local autoDungeonRunning = false
+local selectedDungeon = "Sand Titan [Desert]"  -- Default
+local autoDungeonThread = nil
+
+local function startAutoDungeon()
+    if autoDungeonRunning then return end
+    print("[AutoDungeon] Starting - selected: " .. selectedDungeon)
+    autoDungeonRunning = true
+    
+    autoDungeonThread = task.spawn(function()
+        while autoDungeonRunning do
+            print("[AutoDungeon] Cycle start - TP to dungeon")
+            teleportTo(dungeons[selectedDungeon])
+            
+            -- Wait for character to load properly after TP
+            task.wait(3)
+            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+            local hrp = char:WaitForChild("HumanoidRootPart", 8)
+            if not hrp then
+                print("[AutoDungeon] No HRP after TP - retrying cycle")
+                task.wait(2)
+                continue
+            end
+            
+            task.wait(12)  -- total ~15s for area load / portal animation etc.
+            
+            print("[AutoDungeon] Activating Mob Aura V1")
+            mobAura.Start()
+            
+            -- Farm longer — most bosses take 10-40s depending on aura strength
+            task.wait(16)  -- increased from 17s; tune based on testing
+            
+            print("[AutoDungeon] Stopping Mob Aura")
+            mobAura.Stop()
+            
+            -- IMPORTANT: Do NOT teleport back manually
+            -- Wait for the GAME to teleport us back (usually 3-10s after kill)
+            print("[AutoDungeon] Waiting for game auto-return to lobby...")
+            
+            local safetyTimeout = 0
+            local maxSafety = 20  -- seconds to wait before forcing next cycle
+            
+            while autoDungeonRunning and safetyTimeout < maxSafety do
+                -- Simple check: if no Mobs folder or it's empty → probably back in lobby
+                local mobs = workspace:FindFirstChild("Mobs")
+                if not mobs or #mobs:GetChildren() == 0 then
+                    print("[AutoDungeon] Detected back in lobby (no mobs)")
+                    break
+                end
+                
+                task.wait(1)
+                safetyTimeout = safetyTimeout + 1
+            end
+            
+            if safetyTimeout >= maxSafety then
+                print("[AutoDungeon] Safety timeout - assuming stuck, forcing next cycle")
+            end
+            
+            -- Extra settle time after return
+            task.wait(4)
+            
+            print("[AutoDungeon] Ready for next cycle")
+        end
+        
+        print("[AutoDungeon] Auto Dungeon stopped")
+        mobAura.Stop()  -- cleanup
+    end)
+end
+
+local function stopAutoDungeon()
+    autoDungeonRunning = false
+    if autoDungeonThread then
+        task.cancel(autoDungeonThread)
+        autoDungeonThread = nil
+    end
+    mobAura.Stop()   -- ensure it's cleanly stopped
+end
+
+
+
+-- auto ascend
+local leaderstats = LocalPlayer:WaitForChild("leaderstats")
+local ascendsValue = leaderstats:WaitForChild("\240\159\140\159 Ascends")
+local killsValue = leaderstats:WaitForChild("\240\159\142\175 Kills")
+
+local autoAscendEnabled = false
+local autoAscendConnection = nil
+
+local function getRequiredKills(currentAscends)
+    return (currentAscends + 2) * 1000000   -- 2M at 0, 3M at 1, 4M at 2, etc.
+end
+
+local function checkAndAscend()
+    if not autoAscendEnabled then return end
+    
+    local currentAscends = ascendsValue.Value
+    local currentKills = killsValue.Value
+    local required = getRequiredKills(currentAscends)
+
+    print(string.format("[AutoAscend] Checking: Ascends=%d | Kills=%d / Required=%d", 
+        currentAscends, currentKills, required))
+    
+    if currentKills >= required then
+        print("[AutoAscend] Threshold met → invoking ConfirmAscend")
+        
+        local success, err = pcall(function()
+            local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
+            local ConfirmAscend = Remotes:WaitForChild("ConfirmAscend")
+            ConfirmAscend:InvokeServer()
+        end)
+        
+        if success then
+            -- No notification on success
+        else
+            warn("[AutoAscend] Invoke failed: " .. tostring(err))
+            -- No error popup either — only console warning
+        end
+    end
+end
+
+local function toggleAutoAscend(enabled)
+    autoAscendEnabled = enabled
+    
+    if enabled then
+        -- Initial check
+        checkAndAscend()
+        
+        -- Connect to changes (debounced to avoid spam)
+        autoAscendConnection = killsValue.Changed:Connect(function()
+            task.wait(0.5)  -- debounce
+            checkAndAscend()
+        end)
+        
+        ascendsValue.Changed:Connect(function()
+            task.wait(1)  -- longer debounce on ascend
+            checkAndAscend()
+        end)
+        
+        print("[AutoAscend] Enabled")
+    else
+        if autoAscendConnection then
+            autoAscendConnection:Disconnect()
+            autoAscendConnection = nil
+        end
+        print("[AutoAscend] Disabled")
     end
 end
 
@@ -969,19 +1146,6 @@ do
 
     MainTab:Space()
 
-    local AutoLootToggle = MainTab:Toggle({
-        Title = "Auto Loot",
-        Value = false,
-        Callback = function(enabled)
-            print("[Toggle Callback] Auto Loot toggled → enabled = " .. tostring(enabled))
-            if enabled then
-                task.spawn(StartAutoLoot)
-            else
-                StopAutoLoot()
-            end
-        end
-    })
-
     local MainSection2 = MainTab:Section({
         Title = "Mana",
         Opened = true
@@ -1032,6 +1196,88 @@ do
                     Duration = 7
                 })
             end)
+        end
+    })
+end
+
+-- */ Automation Tab /* --
+do
+    local AutomationTab = ElementsSection:Tab({
+        Title = "Automation",
+        Icon = "solar:settings-bold",
+        IconColor = Purple,
+        Border = true,
+    })
+
+    -- Auto Loot Section
+    local AutoFarmSection = AutomationTab:Section({
+        Title = "Auto Farm",
+        Opened = true
+    })
+
+    AutoFarmSection:Toggle({
+        Title = "Auto Loot",
+        Desc = "Automatically collects all loot",
+        Value = false,
+        Callback = function(enabled)
+            if enabled then
+                task.spawn(StartAutoLoot)
+            else
+                StopAutoLoot()
+            end
+        end
+    })
+
+    AutoFarmSection:Space()
+
+    -- Auto Dungeon Farm Section
+    local AutoDungeonSection = AutomationTab:Section({
+        Title = "Auto Dungeon Farm",
+        Opened = true
+    })
+
+    local dungeonDropdown = AutoDungeonSection:Dropdown({
+        Title = "Select Dungeon",
+        Values = {
+            "Sand Titan [Desert]",
+            "Ice Giant [Snow]",
+            "Jungle Maniac [Jungle]",
+            "Magma Reaper [Volcano]",
+            "Shadow Reaper [Shadow Dungeon]"
+        },
+        Value = selectedDungeon,  -- uses the default you already have
+        Callback = function(value)
+            selectedDungeon = value
+            print("[Auto Dungeon] Selected: " .. value)
+        end
+    })
+
+    AutoDungeonSection:Toggle({
+        Title = "Auto Dungeon Farm",
+        Desc = "Teleports → activates Mob Aura V1 → waits → returns to lobby → repeats",
+        Value = false,
+        Callback = function(enabled)
+            if enabled then
+                startAutoDungeon()
+            else
+                stopAutoDungeon()
+            end
+        end
+    })
+
+    AutomationTab:Space()
+
+    local AutoAscendSection = AutomationTab:Section({
+        Title = "Auto Ascend",
+        Opened = true
+    })
+
+    AutoAscendSection:Toggle({
+        Title = "Auto Ascend",
+        Desc = "might take a few seconds after hitting the required goal",
+        Value = false,
+        Callback = function(enabled)
+            toggleAutoAscend(enabled)
         end
     })
 end
@@ -1175,18 +1421,6 @@ do
         Opened = true
     })
 
-    -- Helper function for instant CFrame teleport
-    local function teleportTo(cframe)
-        local char = LocalPlayer.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        
-        if hrp then
-            print("[Teleport] Teleporting to: " .. tostring(cframe.Position))
-            hrp.CFrame = cframe
-        else
-            print("[Teleport] No HumanoidRootPart — can't teleport")
-        end
-    end
 
     -- Sand Titan [Desert]
     DungeonSection:Button({
