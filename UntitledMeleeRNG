@@ -1,0 +1,1748 @@
+--[[
+
+    WindUI Example (wip)
+    
+]]
+
+
+local WindUI
+
+do
+    local ok, result = pcall(function()
+        return require("./src/Init")
+    end)
+    
+    if ok then
+        WindUI = result
+    else 
+        WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+    end
+end
+
+--[[
+
+WindUI.Creator.AddIcons("solar", {
+    ["CheckSquareBold"] = "rbxassetid://132438947521974",
+    ["CursorSquareBold"] = "rbxassetid://120306472146156",
+    ["FileTextBold"] = "rbxassetid://89294979831077",
+    ["FolderWithFilesBold"] = "rbxassetid://74631950400584",
+    ["HamburgerMenuBold"] = "rbxassetid://134384554225463",
+    ["Home2Bold"] = "rbxassetid://92190299966310",
+    ["InfoSquareBold"] = "rbxassetid://119096461016615",
+    ["PasswordMinimalisticInputBold"] = "rbxassetid://109919668957167",
+    ["SolarSquareTransferHorizontalBold"] = "rbxassetid://125444491429160",
+})--]]
+
+-- Don't need this - because this popup appears after validation of key system
+function createPopup()
+    return WindUI:Popup({
+        Title = "Welcome to the WindUI!",
+        Icon = "bird",
+        Content = "Hello!",
+        Buttons = {
+            {
+                Title = "Hahaha",
+                Icon = "bird",
+                Variant = "Tertiary"
+            },
+            {
+                Title = "Hahaha",
+                Icon = "bird",
+                Variant = "Tertiary"
+            },
+            {
+                Title = "Hahaha",
+                Icon = "bird",
+                Variant = "Tertiary"
+            }
+        }
+    })
+end
+
+
+
+-- */  Window  /* --
+local Window = WindUI:CreateWindow({
+    Title = "CHITO hub  |  Untitled Melee RNG",
+    --Author = "by .ftgs • Footagesus",
+    Folder = "AnimeCraftingCHITO",
+    Icon = "solar:folder-2-bold-duotone",
+    --IconSize = 22*2,
+    NewElements = true,
+    --Size = UDim2.fromOffset(700,700),
+    
+    HideSearchBar = false,
+    
+    OpenButton = {
+        Title = "Open CHITO hub", -- can be changed
+        CornerRadius = UDim.new(1,0), -- fully rounded
+        StrokeThickness = 3, -- removing outline
+        Enabled = true, -- enable or disable openbutton
+        Draggable = true,
+        OnlyMobile = false,
+        
+        Color = ColorSequence.new( -- gradient
+            Color3.fromHex("#30FF6A"), 
+            Color3.fromHex("#e7ff2f")
+        )
+    },
+    Topbar = {
+        Height = 44,
+        ButtonsType = "Default", -- Default or Mac
+    },
+
+    --[[
+    KeySystem = {
+        Title = "Key System Example  |  WindUI Example",
+        Note = "Key System. Key: 1234",
+        KeyValidator = function(EnteredKey)
+            if EnteredKey == "1234" then
+                createPopup()
+                return true
+            end
+            return false
+            -- return EnteredKey == "1234" -- if key == "1234" then return true else return false end
+        end
+    }
+    ]]
+})
+
+--createPopup()
+
+--Window:SetUIScale(.8)
+
+-- */  Tags  /* --
+do
+    Window:Tag({
+        Title = "v1.0 [BETA]",
+        Icon = "bird",
+        Color = Color3.fromHex("#1c1c1c"),
+        Border = true,
+    })
+end
+
+
+local vu = game:GetService("VirtualUser")
+game.Players.LocalPlayer.Idled:Connect(function()
+    vu:CaptureController()
+    vu:ClickButton2(Vector2.new())
+end)
+
+
+-- */  Theme (soon)  /* --
+do
+    --[[WindUI:AddTheme({
+        Name = "Stylish",
+        
+        Accent = Color3.fromHex("#3b82f6"), 
+        Dialog = Color3.fromHex("#1a1a1a"), 
+        Outline = Color3.fromHex("#3b82f6"),
+        Text = Color3.fromHex("#f8fafc"),  
+        Placeholder = Color3.fromHex("#94a3b8"),
+        Button = Color3.fromHex("#334155"), 
+        Icon = Color3.fromHex("#60a5fa"), 
+        
+        WindowBackground = Color3.fromHex("#0f172a"),
+        
+        TopbarButtonIcon = Color3.fromHex("#60a5fa"),
+        TopbarTitle = Color3.fromHex("#f8fafc"),
+        TopbarAuthor = Color3.fromHex("#94a3b8"),
+        TopbarIcon = Color3.fromHex("#3b82f6"),
+        
+        TabBackground = Color3.fromHex("#1e293b"),    
+        TabTitle = Color3.fromHex("#f8fafc"),
+        TabIcon = Color3.fromHex("#60a5fa"),
+        
+        ElementBackground = Color3.fromHex("#1e293b"),
+        ElementTitle = Color3.fromHex("#f8fafc"),
+        ElementDesc = Color3.fromHex("#cbd5e1"),
+        ElementIcon = Color3.fromHex("#60a5fa"),
+    })--]]
+    
+    -- WindUI:SetTheme("Stylish")
+end
+
+
+-- */  Colors  /* --
+local Purple = Color3.fromHex("#7775F2")
+local Yellow = Color3.fromHex("#ECA201")
+local Green = Color3.fromHex("#10C550")
+local Grey = Color3.fromHex("#83889E")
+local Blue = Color3.fromHex("#257AF7")
+local Red = Color3.fromHex("#EF4F1D")
+
+
+-- */ Other Functions /* --
+local function parseJSON(luau_table, indent, level, visited)
+    indent = indent or 2
+    level = level or 0
+    visited = visited or {}
+    
+    local currentIndent = string.rep(" ", level * indent)
+    local nextIndent = string.rep(" ", (level + 1) * indent)
+    
+    if luau_table == nil then
+        return "null"
+    end
+    
+    local dataType = type(luau_table)
+    
+    if dataType == "table" then
+        if visited[luau_table] then
+            return "\"[Circular Reference]\""
+        end
+        
+        visited[luau_table] = true
+        
+        local isArray = true
+        local maxIndex = 0
+        
+        for k, _ in pairs(luau_table) do
+            if type(k) == "number" and k > maxIndex then
+                maxIndex = k
+            end
+            if type(k) ~= "number" or k <= 0 or math.floor(k) ~= k then
+                isArray = false
+                break
+            end
+        end
+        
+        local count = 0
+        for _ in pairs(luau_table) do
+            count = count + 1
+        end
+        if count ~= maxIndex and isArray then
+            isArray = false
+        end
+        
+        if count == 0 then
+            return "{}"
+        end
+        
+        if isArray then
+            if count == 0 then
+                return "[]"
+            end
+            
+            local result = "[\n"
+            
+            for i = 1, maxIndex do
+                result = result .. nextIndent .. parseJSON(luau_table[i], indent, level + 1, visited)
+                if i < maxIndex then
+                    result = result .. ","
+                end
+                result = result .. "\n"
+            end
+            
+            result = result .. currentIndent .. "]"
+            return result
+        else
+            local result = "{\n"
+            local first = true
+            
+            local keys = {}
+            for k in pairs(luau_table) do
+                table.insert(keys, k)
+            end
+            table.sort(keys, function(a, b)
+                if type(a) == type(b) then
+                    return tostring(a) < tostring(b)
+                else
+                    return type(a) < type(b)
+                end
+            end)
+            
+            for _, k in ipairs(keys) do
+                local v = luau_table[k]
+                if not first then
+                    result = result .. ",\n"
+                else
+                    first = false
+                end
+                
+                if type(k) == "string" then
+                    result = result .. nextIndent .. "\"" .. k .. "\": "
+                else
+                    result = result .. nextIndent .. "\"" .. tostring(k) .. "\": "
+                end
+                
+                result = result .. parseJSON(v, indent, level + 1, visited)
+            end
+            
+            result = result .. "\n" .. currentIndent .. "}"
+            return result
+        end
+    elseif dataType == "string" then
+        local escaped = luau_table:gsub("\\", "\\\\")
+        escaped = escaped:gsub("\"", "\\\"")
+        escaped = escaped:gsub("\n", "\\n")
+        escaped = escaped:gsub("\r", "\\r")
+        escaped = escaped:gsub("\t", "\\t")
+        
+        return "\"" .. escaped .. "\""
+    elseif dataType == "number" then
+        return tostring(luau_table)
+    elseif dataType == "boolean" then
+        return luau_table and "true" or "false"
+    elseif dataType == "function" then
+        return "\"function\""
+    else
+        return "\"" .. dataType .. "\""
+    end
+end
+
+local function tableToClipboard(luau_table, indent)
+    indent = indent or 4
+    local jsonString = parseJSON(luau_table, indent)
+    setclipboard(jsonString)
+    return jsonString
+end
+
+
+
+
+-- */  Elements Section  /* --
+local ElementsSection = Window:Section({
+    Title = "Elements",
+    Opened = true
+})
+local ConfigUsageSection = Window:Section({
+    Title = "Config Usage",
+    Opened = true
+})
+local OtherSection = Window:Section({
+    Title = "Other",
+    Opened = true
+})
+
+
+--------------------- FUNCTIONS ---------------------------
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local autoLootRunning = false
+local lootThread = nil
+
+local function fireLoot(part)
+    print("[AutoLoot] Attempting to fire touch on: " .. part:GetFullName())
+    
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    local touchingPart = root or part  -- fallback to self-fire
+    
+    firetouchinterest(touchingPart, part, 0)
+    firetouchinterest(touchingPart, part, 1)
+    
+    print("[AutoLoot] Fired double touchinterest on " .. part.Name .. " (from " .. touchingPart.Name .. ")")
+end
+
+local function StartAutoLoot()
+    print("[AutoLoot] StartAutoLoot called!")
+    
+    if autoLootRunning then
+        print("[AutoLoot] Already running, ignoring start")
+        return
+    end
+    
+    autoLootRunning = true
+    print("[AutoLoot] autoLootRunning = true")
+    
+    lootThread = task.spawn(function()
+        print("[AutoLoot] Coroutine/Thread started")
+        
+        while autoLootRunning do
+            print("[AutoLoot] Loop iteration started")
+            
+            local char = LocalPlayer.Character
+            if not char or not char:FindFirstChild("HumanoidRootPart") then
+                print("[AutoLoot] No character or HRP → waiting")
+                task.wait(1)
+                continue
+            end
+            
+            if not workspace:FindFirstChild("Loot") then
+                print("[AutoLoot] workspace.Loot missing → waiting")
+                task.wait(2)
+                continue
+            end
+            
+            local firedCount = 0
+            
+            local success, err = pcall(function()
+                for _, model in ipairs(workspace.Loot:GetChildren()) do
+                    if not autoLootRunning then break end
+                    
+                    if not model:IsA("Model") then continue end
+                    
+                    -- Scan ALL descendants for ANY BasePart with TouchInterest/Transmitter
+                    for _, part in ipairs(model:GetDescendants()) do
+                        if not autoLootRunning then break end
+                        
+                        if part:IsA("BasePart") then
+                            local interest = part:FindFirstChild("TouchInterest") or part:FindFirstChild("TouchTransmitter")
+                            if interest then
+                                fireLoot(part)
+                                firedCount += 1
+                                
+                                task.wait(0.03)  -- tiny per-fire delay (anti-spam)
+                            end
+                        end
+                    end
+                end
+            end)
+            
+            if firedCount > 0 then
+                print(string.format("[AutoLoot] This cycle: fired %d loots", firedCount))
+            else
+                print("[AutoLoot] This cycle: no valid loot found")
+            end
+            
+            if not success then
+                warn("[AutoLoot] Error in loop: " .. tostring(err))
+            end
+            
+            task.wait(0.4)  -- main throttle (~2.5 cycles/sec)
+        end
+        
+        print("[AutoLoot] Loop exited cleanly")
+    end)
+end
+
+local function StopAutoLoot()
+    print("[AutoLoot] StopAutoLoot called!")
+    autoLootRunning = false
+    
+    if lootThread then
+        task.cancel(lootThread)
+        lootThread = nil
+        print("[AutoLoot] Thread cancelled")
+    end
+end
+
+
+-- Mob Aura (continuous, fast spam + aggressive local cleanup)
+local mobAura = {}
+mobAura.running = false
+mobAura.thread  = nil
+
+function mobAura.Start()
+    if mobAura.running then return end
+
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    local HitMob  = remotes and remotes:FindFirstChild("HitMob")
+    
+    local weapon
+    local assets = ReplicatedStorage:FindFirstChild("Assets")
+    if assets then
+        local weaponsFolder = assets:FindFirstChild("Weapons")
+        if weaponsFolder then
+            weapon = weaponsFolder:FindFirstChild("Rusty Sword")  -- change name if different
+        end
+    end
+
+    local mobsFolder = workspace:FindFirstChild("Mobs")
+
+    if not (HitMob and weapon and mobsFolder) then
+        return  -- silent fail (no warn)
+    end
+
+    mobAura.running = true
+
+    mobAura.thread = task.spawn(function()
+        local damage = 999999
+
+        while mobAura.running do
+            local hit_datas = {}
+            local targets = {}  -- mobId → mob (for cleanup)
+
+            for _, mob in mobsFolder:GetChildren() do
+                if not mob:IsA("Model") then continue end
+
+                local id = 
+                    mob:GetAttribute("Id") or mob:GetAttribute("ID") or
+                    mob:GetAttribute("MobId") or mob:GetAttribute("UUID") or
+                    mob:GetAttribute("Identifier") or mob:GetAttribute("mobId")
+
+                if typeof(id) == "string" and #id >= 4 then
+                    targets[id] = mob
+                    table.insert(hit_datas, {id, damage, weapon})
+                end
+            end
+
+            if #hit_datas > 0 and mobAura.running then
+                local args = {hit_datas}
+
+                local BURST_SIZE       = 25   -- calls per mini-burst
+                local CYCLES_PER_LOOP  = 50    -- total ~200 calls per collection
+                local INTRA_BURST_WAIT = 0.08
+
+                for c = 1, CYCLES_PER_LOOP do
+                    if not mobAura.running then break end
+
+                    for i = 1, BURST_SIZE do
+                        if not mobAura.running then break end
+                        task.spawn(HitMob.FireServer, HitMob, unpack(args))
+                    end
+
+                    if mobAura.running then
+                        task.wait(INTRA_BURST_WAIT)
+                    end
+                end
+
+                -- Aggressive local cleanup (destroy if still parented)
+                if mobAura.running then
+                    task.wait(0.35)  -- short delay after spam
+
+                    for _, mob in pairs(targets) do
+                        if mobAura.running and mob and mob.Parent then
+                            mob:Destroy()
+                        end
+                    end
+                end
+            else
+                task.wait(1.1)  -- no targets → wait longer
+            end
+
+            if mobAura.running then
+                task.wait(0.9)  -- main loop throttle
+            end
+        end
+
+        -- Final cleanup on exit (catches anything left from last burst)
+        if mobsFolder then
+            for _, mob in mobsFolder:GetChildren() do
+                if mob:IsA("Model") then
+                    mob:Destroy()
+                end
+            end
+        end
+
+        mobAura.thread = nil
+    end)
+end
+
+
+function mobAura.Stop()
+    local wasRunning = mobAura.running
+    mobAura.running = false
+
+    if mobAura.thread then
+        task.cancel(mobAura.thread)
+        mobAura.thread = nil
+    end
+
+    -- Extra immediate cleanup when turning off
+    if wasRunning then
+        local mobsFolder = workspace:FindFirstChild("Mobs")
+        if mobsFolder then
+            for _, mob in mobsFolder:GetChildren() do
+                if mob:IsA("Model") then
+                    mob:Destroy()
+                end
+            end
+        end
+    end
+end
+
+
+-----------------------------------------------------------------SECONDARY FUNCTIONS START FROM HERE----------------------------
+
+--WalkSpeed & JumpPower section
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+
+local speedActive = false
+local jumpActive = false
+local currentWalkSpeed = 16
+local currentJumpPower = 50
+
+local speedConnection = nil
+
+local DEFAULT_WALKSPEED = 16
+local DEFAULT_JUMPPOWER = 50
+
+local function applySpeedAndJump()
+    local char = player.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    humanoid.UseJumpPower = true
+
+    if speedActive then
+        humanoid.WalkSpeed = currentWalkSpeed
+    else
+        humanoid.WalkSpeed = DEFAULT_WALKSPEED
+    end
+
+    if jumpActive then
+        humanoid.JumpPower = currentJumpPower
+    else
+        humanoid.JumpPower = DEFAULT_JUMPPOWER
+        -- Optional: if you want exact default height behavior when off, set UseJumpPower = false here
+        humanoid.UseJumpPower = false
+    end
+end
+
+local function startLoop()
+    if speedConnection then return end
+
+    speedConnection = RunService.Stepped:Connect(function()  -- Use Stepped instead of Heartbeat (runs earlier in frame)
+        applySpeedAndJump()
+    end)
+
+    -- Handle respawn
+    player.CharacterAdded:Connect(function(char)
+        local humanoid = char:WaitForChild("Humanoid")
+        -- Small delay to let game set defaults first
+        task.wait()
+        applySpeedAndJump()
+    end)
+end
+
+local function stopLoop()
+    if speedConnection then
+        speedConnection:Disconnect()
+        speedConnection = nil
+    end
+end
+
+-- Slider callbacks
+function setWalkSpeed(value)
+    currentWalkSpeed = value
+    if speedActive then
+        applySpeedAndJump()  -- Instant apply
+    end
+end
+
+function setJumpPower(value)
+    currentJumpPower = value
+    if jumpActive then
+        applySpeedAndJump()
+    end
+end
+
+-- Toggle callbacks
+function setSpeedEnabled(state)
+    speedActive = state
+    if state or jumpActive then
+        startLoop()
+    else
+        stopLoop()
+    end
+    applySpeedAndJump()  -- Apply reset immediately when turning off
+end
+
+function setJumpEnabled(state)
+    jumpActive = state
+    if state or speedActive then
+        startLoop()
+    else
+        stopLoop()
+    end
+    applySpeedAndJump()
+end
+
+
+-- ########## INFINITE JUMP
+
+local infJumpActive = false
+local infJumpConnection = nil
+
+local UserInputService = game:GetService("UserInputService")  -- Make sure this is declared at the top!
+
+local function enableInfJump()
+    if infJumpActive then return end
+    infJumpActive = true
+
+    infJumpConnection = UserInputService.JumpRequest:Connect(function()
+        if not infJumpActive then return end
+        
+        local char = player.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end)
+end
+
+local function disableInfJump()
+    infJumpActive = false
+    if infJumpConnection then
+        infJumpConnection:Disconnect()
+        infJumpConnection = nil
+    end
+end
+
+-- Optional: Re-enable on respawn if it was active before death
+player.CharacterAdded:Connect(function()
+    if infJumpActive then
+        enableInfJump()  -- Reconnect the listener
+    end
+end)
+
+
+-- ## Noclip & Float (No Conflict - Shared Name)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+-- Shared float name (random like IY, used by both noclip and float)
+local floatName = "FloatPlatform_" .. math.random(1, 1000000)
+
+-- Noclip
+local noclipActive = false
+local noclipConnection = nil
+
+-- In enableNoclip() - keep skipping floatName (already good)
+local function enableNoclip()
+    if noclipActive then return end
+    noclipActive = true
+
+    noclipConnection = RunService.Stepped:Connect(function()
+        if not noclipActive then return end
+        local char = player.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name ~= floatName then  -- Skip float
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+
+-- In disableNoclip() - skip restoring float
+local function disableNoclip()
+    if not noclipActive then return end
+    noclipActive = false
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+
+    local char = player.Character
+    if char then
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= floatName then  -- Skip float
+                part.CanCollide = true
+            end
+        end
+    end
+    
+    if floatActive then
+        disableFloat()  -- Clean up old platform
+        task.spawn(enableFloat)  -- Recreate fresh
+    end
+end
+
+-- Float (Exact IY recreation)
+local floatActive = false
+local floatPart = nil
+local floatConnections = {}
+local floatValue = -3.1
+
+local function enableFloat()
+    if floatActive then return end
+    floatActive = true
+
+    local char = player.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+    local hrp = char.HumanoidRootPart
+
+    floatPart = Instance.new("Part")
+    floatPart.Name = floatName  -- Uses the same shared name
+    floatPart.Parent = char
+    floatPart.Transparency = 1
+    floatPart.Size = Vector3.new(2, 0.2, 1.5)
+    floatPart.Anchored = true
+    floatPart.CFrame = hrp.CFrame * CFrame.new(0, floatValue, 0)
+
+    -- E/Q controls (hold = continuous movement)
+    floatConnections.qDown = UserInputService.InputBegan:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.Q then
+            floatValue = floatValue - 0.5
+        end
+    end)
+    floatConnections.qUp = UserInputService.InputEnded:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.Q then
+            floatValue = floatValue + 0.5
+        end
+    end)
+    floatConnections.eDown = UserInputService.InputBegan:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.E then
+            floatValue = floatValue + 1.5
+        end
+    end)
+    floatConnections.eUp = UserInputService.InputEnded:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.E then
+            floatValue = floatValue - 1.5
+        end
+    end)
+
+    -- Follow player
+    floatConnections.heartbeat = RunService.Heartbeat:Connect(function()
+        if not floatActive or not floatPart or not hrp.Parent then
+            disableFloat()
+            return
+        end
+        floatPart.CFrame = hrp.CFrame * CFrame.new(0, floatValue, 0)
+    end)
+
+    -- Cleanup on death
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        floatConnections.died = humanoid.Died:Connect(disableFloat)
+    end
+end
+
+local function disableFloat()
+    if not floatActive then return end
+    floatActive = false
+
+    if floatPart and floatPart.Parent then
+        floatPart:Destroy()
+        floatPart = nil
+    end
+
+    for _, conn in pairs(floatConnections) do
+        if conn then conn:Disconnect() end
+    end
+    floatConnections = {}
+end
+
+--[[  idk. VideoFrame is not working with custom video on exploits
+      I don't know why
+    
+-- */  Video Tab  /* --
+do
+    local VideoTab = ElementsSection:Tab({
+        Title = "Video",
+        Icon = "video",
+    })
+    
+    VideoTab:Video({
+        Title = "My Video Hahahah", -- optional
+        Author = ".ftgs", -- optional
+        Video = "https://cdn.discordapp.com/attachments/1337368451865645096/1402703845657673878/VID_20250616_180732_158.webm?ex=68fc5f01&is=68fb0d81&hm=f4f0a88dbace2d3cef92535b2e57effae6d4c4fc444338163faafa7f3fdac529&"
+    })
+end
+
+--]]
+
+-- */ Main Tab /* --
+
+do
+    local MainTab = ElementsSection:Tab({
+        Title = "Main",
+        Icon = "solar:home-2-bold",
+        IconColor = Green,
+        Border = true,
+    })
+
+    local MainSection1 = MainTab:Section({
+        Title = "Main",
+        Opened = true
+    })
+
+    -- Mob Aura toggle — now very simple
+    local MobAuraToggle = MainTab:Toggle({
+        Title = "Mob Aura V1",
+        Desc = "Slower + More Stable",
+        Checkbox = true,
+        Value = false,
+        Callback = function(enabled)
+            if enabled then
+                mobAura.Start()
+            else
+                mobAura.Stop()
+            end
+        end
+    })
+
+    MainTab:Space()
+
+    MainTab:Button({
+        Title = "Mob Aura V2",
+        Desc = "uses another method, click every 2-3 seconds for best result.",
+        Icon = "zap",
+        Color = Color3.fromHex("#fc0000"),
+        Callback = function()
+            task.spawn(function()
+                local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+                local HitMob = remotes and remotes:FindFirstChild("HitMob")
+                
+                local assets = ReplicatedStorage:FindFirstChild("Assets")
+                local weapons = assets and assets:FindFirstChild("Weapons")
+                local weapon = weapons and weapons:FindFirstChild("Rusty Sword")
+                
+                if not (HitMob and weapon) then
+                    WindUI:Notify({
+                        Title = "Error",
+                        Content = "This isn't supposed to happen, contact script owner.",
+                        Icon = "alert-triangle",
+                        Duration = 4
+                    })
+                    return
+                end
+                
+                local mobsFolder = workspace:FindFirstChild("Mobs")
+                if not mobsFolder then return end
+                
+                local damage = 999999
+                local hit_datas = {}
+                local targets = {}
+                
+                for _, mob in mobsFolder:GetChildren() do
+                    if not mob:IsA("Model") then continue end
+                    
+                    local mobId = 
+                        mob:GetAttribute("Id") or
+                        mob:GetAttribute("ID") or
+                        mob:GetAttribute("MobId") or
+                        mob:GetAttribute("UUID") or
+                        mob:GetAttribute("Identifier") or
+                        mob:GetAttribute("mobId")
+                    
+                    if typeof(mobId) == "string" and #mobId >= 4 then
+                        targets[mobId] = mob
+                        table.insert(hit_datas, {mobId, damage, weapon})
+                    end
+                end
+
+                if #hit_datas == 0 then
+                    -- notify no targets
+                    return
+                end
+
+                WindUI:Notify({ Title = "Activated!", Content = "Spamming hard — ping might spike briefly", Icon = "zap", Duration = 6 })
+
+                local args = { hit_datas }
+
+                local TOTAL_FIRES = 2000          -- tune 1200–3000; higher = more kills but riskier
+                local THREAD_COUNT = 8            -- sweet spot for most executors
+
+                local firesPerThread = math.ceil(TOTAL_FIRES / THREAD_COUNT)
+
+                for _ = 1, THREAD_COUNT do
+                    task.spawn(function()
+                        for i = 1, firesPerThread do
+                            HitMob:FireServer(unpack(args))
+                        end
+                    end)
+                end
+
+                task.wait(2.0)  -- minimal safe wait for rewards; increase to 2.5–3 if missing money
+
+                for _, mob in pairs(targets) do
+                    if mob and mob.Parent then
+                        mob:Destroy()
+                    end
+                end
+
+                -- Optional full nuke
+                -- for _, obj in mobsFolder:GetChildren() do if obj:IsA("Model") then obj:Destroy() end end
+
+                WindUI:Notify({
+                    Title = "Burst Complete",
+                    Content = "Sent ~" .. TOTAL_FIRES .. " hits\nLocal cleanup done",
+                    Icon = "check-circle",
+                    Duration = 5
+                })
+            end)
+        end
+    })
+
+    MainTab:Space()
+
+    local AutoLootToggle = MainTab:Toggle({
+        Title = "Auto Loot",
+        Value = false,
+        Callback = function(enabled)
+            print("[Toggle Callback] Auto Loot toggled → enabled = " .. tostring(enabled))
+            if enabled then
+                task.spawn(StartAutoLoot)
+            else
+                StopAutoLoot()
+            end
+        end
+    })
+
+    local MainSection2 = MainTab:Section({
+        Title = "Mana",
+        Opened = true
+    })
+
+    MainTab:Button({
+        Title = "Convert all MP to SP",
+        Icon = "zap",
+        Color = Color3.fromHex("#b801d4"),  -- red = aggressive
+        Callback = function()
+            task.spawn(function()
+                local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+                local ConvertMana = Remotes:WaitForChild("ConvertMana")
+                
+                local leaderstats = LocalPlayer:WaitForChild("leaderstats")
+                local manaValue   = leaderstats:WaitForChild("\240\159\159\163 Mana")
+                
+                local manaAtStart = manaValue.Value
+                if manaAtStart < 10 then
+                    WindUI:Notify({Title = "Not enough", Content = "Need at least 10 MP", Duration = 4})
+                    return
+                end
+                
+                WindUI:Notify({
+                    Title = "Mana → SP",
+                    Content = "Starting..",
+                    Duration = 3
+                })
+                
+                local BATCH_COUNT = 80   -- tune: 40–150; too high = invocation queue exhausted error
+                local PER_CALL    = 10
+                
+                for i = 1, BATCH_COUNT do
+                    task.spawn(function()
+                        pcall(ConvertMana.InvokeServer, ConvertMana, PER_CALL)
+                    end)
+                end
+                
+                -- Give some time for server to process & replicate mana back
+                task.wait(1.4)
+                
+                local convertedApprox = manaAtStart - manaValue.Value
+                WindUI:Notify({
+                    Title = "Done (approx)",
+                    Content = "Started with " .. manaAtStart .. " MP\nLikely converted ~" .. convertedApprox .. " MP",
+                    Icon = "check-circle",
+                    Duration = 7
+                })
+            end)
+        end
+    })
+end
+
+
+-- */ Teleport Tab /* -- 
+do
+    local TeleportTab = ElementsSection:Tab({
+        Title = "Teleports",
+        Icon = "solar:map-point-bold",
+        IconColor = Yellow,
+        Border = true,
+    })
+
+    local WorldSection = TeleportTab:Section({
+        Title = "World",
+        Opened = true
+    })
+
+    -- Helper function to fire touch interest (same style as auto-loot)
+    local function firePortalTouch(portalPart)
+        if not portalPart or not portalPart:FindFirstChild("TouchInterest") then
+            print("[Teleport] No TouchInterest found on: " .. (portalPart and portalPart:GetFullName() or "nil"))
+            return
+        end
+        
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        
+        if not hrp then
+            print("[Teleport] No HumanoidRootPart — can't fire touch")
+            return
+        end
+        
+        print("[Teleport] Firing portal touch: " .. portalPart:GetFullName())
+        
+        firetouchinterest(hrp, portalPart, 0)
+        task.wait(0.03)  -- tiny delay helps reliability
+        firetouchinterest(hrp, portalPart, 1)
+    end
+
+    -- Grassland → Desert
+    WorldSection:Button({
+        Title = "Desert Biome",
+        Color = Color3.fromHex("#30a2ff"),
+        Callback = function()
+            local portal = workspace:FindFirstChild("Areas", true) 
+                and workspace.Areas:FindFirstChild("Grassland") 
+                and workspace.Areas.Grassland:FindFirstChild("NextPortal")
+            if portal and portal:FindFirstChild("TouchInterest") then
+                firePortalTouch(portal)
+            else
+                print("[Teleport] Grassland NextPortal not found!")
+            end
+        end
+    })
+
+    -- Desert → Snow
+    WorldSection:Button({
+        Title = "Snow Biome",
+        Color = Color3.fromHex("#30a2ff"),
+        Callback = function()
+            local portal = workspace:FindFirstChild("Areas", true) 
+                and workspace.Areas:FindFirstChild("Desert Biome") 
+                and workspace.Areas["Desert Biome"]:FindFirstChild("NextPortal")
+            if portal and portal:FindFirstChild("TouchInterest") then
+                firePortalTouch(portal)
+            else
+                print("[Teleport] Desert NextPortal not found!")
+            end
+        end
+    })
+
+    -- Snow → Jungle
+    WorldSection:Button({
+        Title = "Jungle Biome",
+        Color = Color3.fromHex("#30a2ff"),
+        Callback = function()
+            local portal = workspace:FindFirstChild("Areas", true) 
+                and workspace.Areas:FindFirstChild("Snow Biome") 
+                and workspace.Areas["Snow Biome"]:FindFirstChild("NextPortal")
+            if portal and portal:FindFirstChild("TouchInterest") then
+                firePortalTouch(portal)
+            else
+                print("[Teleport] Snow NextPortal not found!")
+            end
+        end
+    })
+
+    -- Jungle → Volcano
+    WorldSection:Button({
+        Title = "Volcano Island",
+        Color = Color3.fromHex("#30a2ff"),
+        Callback = function()
+            local portal = workspace:FindFirstChild("Areas", true) 
+                and workspace.Areas:FindFirstChild("Jungle Biome") 
+                and workspace.Areas["Jungle Biome"]:FindFirstChild("NextPortal")
+            if portal and portal:FindFirstChild("TouchInterest") then
+                firePortalTouch(portal)
+            else
+                print("[Teleport] Jungle NextPortal not found!")
+            end
+        end
+    })
+
+    -- Volcano → Shadow Realm
+    WorldSection:Button({
+        Title = "Shadow Realm",
+        Color = Color3.fromHex("#30a2ff"),
+        Callback = function()
+            local portal = workspace:FindFirstChild("Areas", true) 
+                and workspace.Areas:FindFirstChild("Volcano Island") 
+                and workspace.Areas["Volcano Island"]:FindFirstChild("NextPortal")
+            if portal and portal:FindFirstChild("TouchInterest") then
+                firePortalTouch(portal)
+            else
+                print("[Teleport] Volcano NextPortal not found!")
+            end
+        end
+    })
+
+    -- Shadow Realm → Shadow Dungeon
+    WorldSection:Button({
+        Title = "Shadow Dungeon",
+        Color = Color3.fromHex("#30a2ff"),
+        Callback = function()
+            local portal = workspace:FindFirstChild("Areas", true) 
+                and workspace.Areas:FindFirstChild("Shadow Realm") 
+                and workspace.Areas["Shadow Realm"]:FindFirstChild("NextPortal")
+            if portal and portal:FindFirstChild("TouchInterest") then
+                firePortalTouch(portal)
+            else
+                print("[Teleport] Shadow Realm NextPortal not found!")
+            end
+        end
+    })
+
+
+    local DungeonSection = TeleportTab:Section({
+        Title = "Dungeons / Bosses",
+        Opened = true
+    })
+
+    -- Helper function for instant CFrame teleport
+    local function teleportTo(cframe)
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        
+        if hrp then
+            print("[Teleport] Teleporting to: " .. tostring(cframe.Position))
+            hrp.CFrame = cframe
+        else
+            print("[Teleport] No HumanoidRootPart — can't teleport")
+        end
+    end
+
+    -- Sand Titan [Desert]
+    DungeonSection:Button({
+        Title = "Sand Titan [Desert]",
+        Color = Color3.fromHex("#e4d0a6"),
+        Callback = function()
+            teleportTo(CFrame.new(648.921082, 21.8249378, -830.604553) * CFrame.Angles(0, 0, 0))
+        end
+    })
+
+    -- Ice Giant [Snow]
+    DungeonSection:Button({
+        Title = "Ice Giant [Snow]",
+        Color = Color3.fromHex("#9bfef6"),
+        Callback = function()
+            teleportTo(CFrame.new(875.647827, 62.9515305, -1796.58374) * CFrame.Angles(0, 0, 0))
+        end
+    })
+
+    -- Jungle Maniac [Jungle]
+    DungeonSection:Button({
+        Title = "Jungle Maniac [Jungle]",
+        Color = Color3.fromHex("#24471e"),
+        Callback = function()
+            teleportTo(CFrame.new(928.761475, 84.7206039, -2850.30103) * CFrame.Angles(0, 0, 0))
+        end
+    })
+
+    -- Magma Reaper [Volcano]
+    DungeonSection:Button({
+        Title = "Magma Reaper [Volcano]",
+        Color = Color3.fromHex("#270808"),
+        Callback = function()
+            teleportTo(CFrame.new(275.833832, 13.8742657, -3729.3562) * CFrame.Angles(0, 0, 0))
+        end
+    })
+
+    -- Shadow Reaper [Shadow Dungeon]
+    DungeonSection:Button({
+        Title = "Shadow Reaper [Shadow Dungeon]",
+        Color = Color3.fromHex("#0f0e1f"),
+        Callback = function()
+            teleportTo(CFrame.new(250.160614, -59.9743614, -5904.80664) * CFrame.Angles(0, 0, 0))
+        end
+    })
+end
+
+
+-- */ Player Tab /* --
+
+do
+    local PlayerTab = ElementsSection:Tab({
+        Title = "Player",
+        Icon = "solar:user-bold",
+        IconColor = Blue,
+        Border = true,
+    })
+
+    local PlayerSection1 = PlayerTab:Section({
+        Title = "Character modifications"
+    })
+
+    PlayerTab:Toggle({
+        Title = "Noclip",
+        Callback = function(state)
+            if state then
+                enableNoclip()
+            else
+                disableNoclip()
+            end
+        end
+    })
+
+    PlayerTab:Space()
+
+    PlayerTab:Toggle({
+        Title = "Float",
+        Desc = "Jumping while floating up (E) or down (Q) might break float.",
+        Callback = function(state)
+            if state then
+                enableFloat()
+            else
+                disableFloat()
+            end
+        end
+    })
+
+
+    PlayerTab:Space()
+
+    PlayerTab:Toggle({
+        Title = "Infinite Jump",
+        Callback = function(state)
+            if state then
+                enableInfJump()
+            else
+                disableInfJump()
+            end
+        end
+    })
+
+    PlayerTab:Space()
+
+    -- WalkSpeed Toggle & Slider
+    local WalkSpeedToggle = PlayerTab:Toggle({
+        Title = "WalkSpeed",
+        Desc = "Enable custom WalkSpeed",
+        Callback = function(state)
+            setSpeedEnabled(state)
+        end
+    })
+
+    local WalkSpeedSlider = PlayerTab:Slider({
+        Title = "WalkSpeed Value",
+        Step = 1,
+        Value = {
+            Min = 16,
+            Max = 100,
+            Default = 16,
+        },
+        Callback = function(value)
+            setWalkSpeed(value)
+        end
+    })
+
+    PlayerTab:Space()
+
+    -- JumpPower Toggle & Slider
+    local JumpPowerToggle = PlayerTab:Toggle({
+        Title = "JumpPower",
+        Desc = "Enable custom JumpPower",
+        Callback = function(state)
+            setJumpEnabled(state)
+        end
+    })
+
+    local JumpPowerSlider = PlayerTab:Slider({
+        Title = "JumpPower Value",
+        Step = 1,
+        Value = {
+            Min = 50,
+            Max = 200,
+            Default = 50,
+        },
+        Callback = function(value)
+            setJumpPower(value)
+        end
+    })
+
+    PlayerTab:Space()
+
+end
+
+-- /* Misc Tab */ -- 
+
+do
+    local MiscTab = ElementsSection:Tab({
+        Title = "Misc",
+        Icon = "solar:folder-with-files-bold",
+        IconColor = Red,
+        Border = true,
+    })
+
+    local MiscSection = MiscTab:Section({
+        Title = "Misc"
+    })
+
+    MiscTab:Button({
+        Title = "Infinite Yield",
+        Color = Color3.fromHex("#30ff6a"),
+        Icon = "solar:flash-bold",
+        Callback = function()
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/DarkNetworks/Infinite-Yield/main/latest.lua'))()
+        end
+    })
+end
+
+
+
+
+-- */  Config Usage  /* --
+
+if not game:GetService("RunService"):IsStudio() then
+    do -- config elements
+        local ConfigElementsTab = ConfigUsageSection:Tab({
+            Title = "Config Elements",
+            Icon = "solar:file-text-bold",
+            IconColor = Blue,
+            IconShape = nil,
+            Border = true,
+        })
+        
+        -- All elements are taken from the official documentation: https://footagesus.github.io/WindUI-Docs/docs
+        
+        -- Saving elements to the config using `Flag`
+        
+        
+        ConfigElementsTab:Space()
+        
+        ConfigElementsTab:Keybind({
+            Flag = "KeybindTest",
+            Title = "Keybind",
+            Desc = "Keybind to open ui",
+            Value = "K",
+            Callback = function(v)
+                Window:SetToggleKey(Enum.KeyCode[v])
+            end
+        })
+        
+        ConfigElementsTab:Space()
+    end
+        
+    
+    do -- config panel
+        local ConfigTab = ConfigUsageSection:Tab({
+            Title = "Config Usage",
+            Icon = "solar:folder-with-files-bold",
+            IconColor = Purple,
+            IconShape = nil,
+            Border = true,
+        })
+
+        local ConfigManager = Window.ConfigManager
+        local ConfigName = "default"
+
+        local ConfigNameInput = ConfigTab:Input({
+            Title = "Config Name",
+            Icon = "file-cog",
+            Callback = function(value)
+                ConfigName = value
+            end
+        })
+
+        ConfigTab:Space()
+        
+        -- local AutoLoadToggle = ConfigTab:Toggle({
+        --     Title = "Enable Auto Load to Selected Config",
+        --     Value = false,
+        --     Callback = function(v)
+        --         Window.CurrentConfig:SetAutoLoad(v)
+        --     end
+        -- })
+
+        -- ConfigTab:Space()
+
+        local AllConfigs = ConfigManager:AllConfigs()
+        local DefaultValue = table.find(AllConfigs, ConfigName) and ConfigName or nil
+
+        local AllConfigsDropdown = ConfigTab:Dropdown({
+            Title = "All Configs",
+            Desc = "Select existing configs",
+            Values = AllConfigs,
+            Value = DefaultValue,
+            Callback = function(value)
+                ConfigName = value
+                ConfigNameInput:Set(value)
+                
+                AutoLoadToggle:Set(ConfigManager:GetConfig(ConfigName).AutoLoad or false)
+            end
+        })
+
+        ConfigTab:Space()
+
+        ConfigTab:Button({
+            Title = "Save Config",
+            Icon = "",
+            Justify = "Center",
+            Callback = function()
+                Window.CurrentConfig = ConfigManager:Config(ConfigName)
+                if Window.CurrentConfig:Save() then
+                    WindUI:Notify({
+                        Title = "Config Saved",
+                        Content = "Config '" .. ConfigName .. "' saved",
+                        Icon = "check",
+                    })
+                end
+                
+                AllConfigsDropdown:Refresh(ConfigManager:AllConfigs())
+            end
+        })
+
+        ConfigTab:Space()
+
+        ConfigTab:Button({
+            Title = "Load Config",
+            Icon = "",
+            Justify = "Center",
+            Callback = function()
+                Window.CurrentConfig = ConfigManager:CreateConfig(ConfigName)
+                if Window.CurrentConfig:Load() then
+                    WindUI:Notify({
+                        Title = "Config Loaded",
+                        Content = "Config '" .. ConfigName .. "' loaded",
+                        Icon = "refresh-cw",
+                    })
+                end
+            end
+        })
+
+        ConfigTab:Space()
+
+        ConfigTab:Button({
+            Title = "Print AutoLoad Configs",
+            Icon = "",
+            Justify = "Center",
+            Callback = function()
+                print(HttpService:JSONDecode(ConfigManager:GetAutoLoadConfigs()))
+            end
+        })
+    end
+end
+
+
+
+
+-- */  Other  /* --
+do
+    local InviteCode = "jTYJtXMZgc"
+    local DiscordAPI = "https://discord.com/api/v10/invites/" .. InviteCode .. "?with_counts=true&with_expiration=true"
+    local success, Response = pcall(function()
+        return WindUI.cloneref(game:GetService("HttpService")):JSONDecode(WindUI.Creator.Request({
+            Url = DiscordAPI,
+            Method = "GET",
+            Headers = {
+                ["User-Agent"] = "WindUI/Example",
+                ["Accept"] = "application/json"
+            }
+        }).Body)
+    end)
+
+    local DiscordTab = OtherSection:Tab({
+        Title = "Discord",
+        Border = true,
+    })
+
+    if success and Response and Response.guild then
+        DiscordTab:Section({
+            Title = "Join our Discord server!",
+            TextSize = 20,
+        })
+        DiscordTab:Paragraph({
+            Title = tostring(Response.guild.name),
+            Desc = tostring(Response.guild.description or "Join in-case of needing support."),
+            Image = "https://cdn.discordapp.com/icons/" .. Response.guild.id .. "/" .. Response.guild.icon .. ".png?size=1024",
+            -- Optional: change banner if you have one, or remove Thumbnail line
+            Thumbnail = "https://cdn.discordapp.com/banners/" .. Response.guild.id .. "/" .. (Response.guild.banner or "") .. ".png?size=512",
+            ImageSize = 48,
+            Buttons = {
+                {
+                    Title = "Copy Invite Link",
+                    Icon = "link",
+                    Callback = function()
+                        setclipboard("https://discord.gg/" .. InviteCode)
+                    end
+                }
+            }
+        })
+    else
+        -- Fallback if API fails or invalid code
+        DiscordTab:Section({ Title = "Join our Discord!", TextSize = 20 })
+        DiscordTab:Paragraph({
+            Title = "CHITO Hub Community",
+            Desc = "Join for support",
+            Buttons = {
+                {
+                    Title = "Copy Invite",
+                    Icon = "link",
+                    Callback = function()
+                        setclipboard("https://discord.gg/" .. InviteCode)
+                    end
+                }
+            }
+        })
+    end
+end
+
+do
+    local suggestionTab = OtherSection:Tab({
+        Title = "Suggestions",
+        Border = true,
+    })
+
+    local suggestionSec1 = suggestionTab:Section({
+        Title = "Send suggestions!",
+    })
+
+
+    -- ===============================
+    --  SUGGESTIONS WEBHOOK SYSTEM
+    -- ===============================
+
+    local Players = game:GetService("Players")
+    local HttpService = game:GetService("HttpService")
+    local LocalPlayer = Players.LocalPlayer
+
+    -- 🔧 CONFIG
+    local WEBHOOK_URL = "https://discord.com/api/webhooks/1461430346133405891/NVDogiK4AvwHBNRbtynzpBQFhb4KzTQQ1tIlBJ3coY4S79g9OE4a34NknqMDdj7ztU0m"
+    local COOLDOWN_SECONDS = 60 * 60 -- 1 hour
+
+    -- ⏱ Cooldown tracker (session-based)
+    local lastSent = 0
+
+    -- 🌐 Executor HTTP resolver
+    local requestFunc =
+        (syn and syn.request)
+        or http_request
+        or request
+        or (fluxus and fluxus.request)
+
+    -- 🚨 Safety check
+    if not requestFunc then
+        warn("Executor does not support HTTP requests")
+    end
+
+    -- 📤 Send suggestion to Discord
+    local function sendWebhookMessage(message)
+        if type(message) ~= "string" or message == "" then
+            return false, "Message cannot be empty"
+        end
+
+        if #message > 1500 then
+            return false, "Message too long (max ~1500 chars)"
+        end
+
+        local now = os.time()
+        if now - lastSent < COOLDOWN_SECONDS then
+            local remaining = COOLDOWN_SECONDS - (now - lastSent)
+            return false, "Cooldown active (" .. remaining .. "s left)"
+        end
+
+        if not requestFunc then
+            return false, "HTTP not supported by executor"
+        end
+
+        -- 🎨 Discord Embed Payload
+        local payload = {
+            embeds = {
+                {
+                    title = "📩 New Suggestion",
+                    color = 0x30ff6a, -- green
+                    fields = {
+                        {
+                            name = "👤 Player",
+                            value = LocalPlayer.Name,
+                            inline = true
+                        },
+                        {
+                            name = "🆔 UserId",
+                            value = tostring(LocalPlayer.UserId),
+                            inline = true
+                        },
+                        {
+                            name = "💬 Message",
+                            value = message,
+                            inline = false
+                        }
+                    },
+                    footer = {
+                        text = "CHITO Hub • Suggestions System"
+                    },
+                    timestamp = DateTime.now():ToIsoDate()
+                }
+            }
+        }
+
+        local response = requestFunc({
+            Url = WEBHOOK_URL,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = HttpService:JSONEncode(payload)
+        })
+
+        -- Discord returns 204 No Content on success
+        if response and (response.StatusCode == 204 or response.StatusCode == 200) then
+            lastSent = now
+            return true
+        end
+
+        return false, response and response.Body or "Webhook failed"
+    end
+
+    -- ===============================
+    --  WINDUI INPUT + BUTTON
+    -- ===============================
+
+    local suggestionText = ""
+
+    suggestionTab:Input({
+        Flag = "Suggestion_Text",
+        Title = "Send suggestions & bugs",
+        Desc = "1 hour cooldown • Logged to Discord",
+        Value = "",
+        InputIcon = "bird",
+        Type = "Textarea",
+        Placeholder = "Type your suggestion here...",
+        Callback = function(input)
+            suggestionText = input
+        end
+    })
+
+    suggestionTab:Button({
+        Title = "Send Suggestion",
+        Icon = "send",
+        Color = Color3.fromHex("#30ff6a"),
+        Callback = function()
+            local ok, msg = sendWebhookMessage(suggestionText)
+
+            if ok then
+                WindUI:Notify({
+                    Title = "Suggestion Sent ✅",
+                    Content = "Thanks! Your message was logged.",
+                    Icon = "check",
+                    Duration = 3
+                })
+                suggestionText = ""
+            else
+                WindUI:Notify({
+                    Title = "Error ❌",
+                    Content = msg,
+                    Icon = "x",
+                    Duration = 4
+                })
+            end
+        end
+    })
+end
+
+
+-- */ Using Nebula Icons /* --
+--[[
+do
+    local NebulaIcons = loadstring(game:HttpGetAsync("https://raw.nebulasoftworks.xyz/nebula-icon-library-loader"))()
+    
+    -- Adding icons (e.g. Fluency)
+    WindUI.Creator.AddIcons("fluency",    NebulaIcons.Fluency)
+    --               ^ Icon name          ^ Table of Icons
+    
+    -- You can also add nebula icons
+    WindUI.Creator.AddIcons("nebula",    NebulaIcons.nebulaIcons)
+    
+    -- Usage ↑ ↓
+    
+    local TestSection = Window:Section({
+        Title = "Custom icons usage test (nebula)",
+        Icon = "nebula:nebula",
+    })
+end
+]]
+--[[
+
+local EndButStartTab = Window:Tab({
+    Title = "EndButStartTab",
+    -- u can use `Before` or `After`
+    Before = AboutTab, -- put this tab Before AboutTab
+    
+})
+--]]
