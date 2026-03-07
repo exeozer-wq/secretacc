@@ -65,7 +65,7 @@ end
 local Window = WindUI:CreateWindow({
     Title = "CHITO hub  |  Untitled Melee RNG",
     --Author = "by .ftgs • Footagesus",
-    Folder = "AnimeCraftingCHITO",
+    Folder = "UntitledMeleeRNG",
     Icon = "solar:folder-2-bold-duotone",
     --IconSize = 22*2,
     NewElements = true,
