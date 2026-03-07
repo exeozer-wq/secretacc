@@ -1193,7 +1193,7 @@ do
         Title = "Sand Titan [Desert]",
         Color = Color3.fromHex("#e4d0a6"),
         Callback = function()
-            teleportTo(CFrame.new(648.921082, 21.8249378, -830.604553) * CFrame.Angles(0, 0, 0))
+            teleportTo(CFrame.new(648.921082, 26.8249378, -830.604553) * CFrame.Angles(0, 0, 0))
         end
     })
 
@@ -1202,7 +1202,7 @@ do
         Title = "Ice Giant [Snow]",
         Color = Color3.fromHex("#9bfef6"),
         Callback = function()
-            teleportTo(CFrame.new(875.647827, 62.9515305, -1796.58374) * CFrame.Angles(0, 0, 0))
+            teleportTo(CFrame.new(875.647827, 68.9515305, -1796.58374) * CFrame.Angles(0, 0, 0))
         end
     })
 
@@ -1211,7 +1211,7 @@ do
         Title = "Jungle Maniac [Jungle]",
         Color = Color3.fromHex("#24471e"),
         Callback = function()
-            teleportTo(CFrame.new(928.761475, 84.7206039, -2850.30103) * CFrame.Angles(0, 0, 0))
+            teleportTo(CFrame.new(928.761475, 90.7206039, -2850.30103) * CFrame.Angles(0, 0, 0))
         end
     })
 
@@ -1220,7 +1220,7 @@ do
         Title = "Magma Reaper [Volcano]",
         Color = Color3.fromHex("#270808"),
         Callback = function()
-            teleportTo(CFrame.new(275.833832, 13.8742657, -3729.3562) * CFrame.Angles(0, 0, 0))
+            teleportTo(CFrame.new(275.833832, 18.8742657, -3729.3562) * CFrame.Angles(0, 0, 0))
         end
     })
 
@@ -1229,7 +1229,7 @@ do
         Title = "Shadow Reaper [Shadow Dungeon]",
         Color = Color3.fromHex("#0f0e1f"),
         Callback = function()
-            teleportTo(CFrame.new(250.160614, -59.9743614, -5904.80664) * CFrame.Angles(0, 0, 0))
+            teleportTo(CFrame.new(250.160614, -50.9743614, -5904.80664) * CFrame.Angles(0, 0, 0)) 
         end
     })
 end
