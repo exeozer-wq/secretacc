@@ -444,24 +444,24 @@ function mobAura.Start()
     if assets then
         local weaponsFolder = assets:FindFirstChild("Weapons")
         if weaponsFolder then
-            weapon = weaponsFolder:FindFirstChild("Rusty Sword")  -- change name if different
+            weapon = weaponsFolder:FindFirstChild("Rusty Sword")
         end
     end
 
     local mobsFolder = workspace:FindFirstChild("Mobs")
 
     if not (HitMob and weapon and mobsFolder) then
-        return  -- silent fail (no warn)
+        return
     end
 
     mobAura.running = true
 
     mobAura.thread = task.spawn(function()
-        local damage = 999999
+        local damage = 99999999999
+        local hitMobIds = {}  -- track already-hit mob IDs
 
         while mobAura.running do
-            local hit_datas = {}
-            local targets = {}  -- mobId → mob (for cleanup)
+            local targets = {}
 
             for _, mob in mobsFolder:GetChildren() do
                 if not mob:IsA("Model") then continue end
@@ -472,56 +472,29 @@ function mobAura.Start()
                     mob:GetAttribute("Identifier") or mob:GetAttribute("mobId")
 
                 if typeof(id) == "string" and #id >= 4 then
-                    targets[id] = mob
-                    table.insert(hit_datas, {id, damage, weapon})
+                    if not hitMobIds[id] then  -- only hit mobs we haven't hit yet
+                        targets[id] = mob
+                        hitMobIds[id] = true  -- mark as hit
+                        HitMob:FireServer({{ id, damage, weapon }})
+                    end
                 end
             end
 
-            if #hit_datas > 0 and mobAura.running then
-                local args = {hit_datas}
-
-                local BURST_SIZE       = 25   -- calls per mini-burst
-                local CYCLES_PER_LOOP  = 50    -- total ~200 calls per collection
-                local INTRA_BURST_WAIT = 0.08
-
-                for c = 1, CYCLES_PER_LOOP do
-                    if not mobAura.running then break end
-
-                    for i = 1, BURST_SIZE do
-                        if not mobAura.running then break end
-                        task.spawn(HitMob.FireServer, HitMob, unpack(args))
-                    end
-
-                    if mobAura.running then
-                        task.wait(INTRA_BURST_WAIT)
-                    end
+            -- Cleanup: destroy mobs that are still around and already hit
+            for id, mob in pairs(hitMobIds) do
+                local mobObj = mobsFolder:FindFirstChild(id) or targets[id]
+                if mobObj and mobObj.Parent then
+                    mobObj:Destroy()
                 end
-
-                -- Aggressive local cleanup (destroy if still parented)
-                if mobAura.running then
-                    task.wait(0.35)  -- short delay after spam
-
-                    for _, mob in pairs(targets) do
-                        if mobAura.running and mob and mob.Parent then
-                            mob:Destroy()
-                        end
-                    end
-                end
-            else
-                task.wait(1.1)  -- no targets → wait longer
             end
 
-            if mobAura.running then
-                task.wait(0.9)  -- main loop throttle
-            end
+            task.wait(1.5)  -- poll for new mobs (e.g. if boss has phases/spawns adds)
         end
 
-        -- Final cleanup on exit (catches anything left from last burst)
+        -- Final cleanup on exit
         if mobsFolder then
             for _, mob in mobsFolder:GetChildren() do
-                if mob:IsA("Model") then
-                    mob:Destroy()
-                end
+                if mob:IsA("Model") then mob:Destroy() end
             end
         end
 
@@ -585,12 +558,12 @@ local function startAutoDungeon()
     if autoDungeonRunning then return end
     print("[AutoDungeon] Starting - selected: " .. selectedDungeon)
     autoDungeonRunning = true
-    
+
     autoDungeonThread = task.spawn(function()
         while autoDungeonRunning do
             print("[AutoDungeon] Cycle start - TP to dungeon")
             teleportTo(dungeons[selectedDungeon])
-            
+
             -- Wait for character to load properly after TP
             task.wait(3)
             local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -600,49 +573,96 @@ local function startAutoDungeon()
                 task.wait(2)
                 continue
             end
-            
+
             task.wait(12)  -- total ~15s for area load / portal animation etc.
-            
-            print("[AutoDungeon] Activating Mob Aura V1")
-            mobAura.Start()
-            
-            -- Farm longer — most bosses take 10-40s depending on aura strength
-            task.wait(16)  -- increased from 17s; tune based on testing
-            
-            print("[AutoDungeon] Stopping Mob Aura")
-            mobAura.Stop()
-            
-            -- IMPORTANT: Do NOT teleport back manually
-            -- Wait for the GAME to teleport us back (usually 3-10s after kill)
+
+            -- Wait for mobs to actually spawn in
+            print("[AutoDungeon] Waiting for mobs to load...")
+            local mobsFolder = workspace:FindFirstChild("Mobs")
+            local mobWait = 0
+            while autoDungeonRunning and mobWait < 10 do
+                mobsFolder = workspace:FindFirstChild("Mobs")
+                if mobsFolder and #mobsFolder:GetChildren() > 0 then
+                    print("[AutoDungeon] Mobs detected, waiting 2s then killing")
+                    task.wait(2)
+                    break
+                end
+                task.wait(1)
+                mobWait += 1
+            end
+
+            -- Instant kill all mobs once
+            print("[AutoDungeon] Instant killing all mobs")
+
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+            local HitMob = remotes and remotes:FindFirstChild("HitMob")
+            local assets = ReplicatedStorage:FindFirstChild("Assets")
+            local weapons = assets and assets:FindFirstChild("Weapons")
+            local weapon = weapons and weapons:FindFirstChild("Rusty Sword")
+            mobsFolder = workspace:FindFirstChild("Mobs")
+
+            if HitMob and weapon and mobsFolder then
+                local damage = 999999999
+                local targets = {}
+                local hitCount = 0
+
+                for _, mob in mobsFolder:GetChildren() do
+                    if not mob:IsA("Model") then continue end
+
+                    local mobId =
+                        mob:GetAttribute("Id") or mob:GetAttribute("ID") or
+                        mob:GetAttribute("MobId") or mob:GetAttribute("UUID") or
+                        mob:GetAttribute("Identifier") or mob:GetAttribute("mobId")
+
+                    if typeof(mobId) == "string" and #mobId >= 4 then
+                        targets[mobId] = mob
+                        HitMob:FireServer({{ mobId, damage, weapon }})
+                        hitCount += 1
+                    end
+                end
+
+                print("[AutoDungeon] Hit " .. hitCount .. " mob(s), waiting for server...")
+
+                task.wait(2.0)  -- wait for server to process & rewards
+
+                for _, mob in pairs(targets) do
+                    if mob and mob.Parent then
+                        mob:Destroy()
+                    end
+                end
+            else
+                print("[AutoDungeon] Missing HitMob/weapon/mobs - skipping kill step")
+            end
+
+            task.wait(12)
+
+            -- Wait for game to auto-return us to lobby
             print("[AutoDungeon] Waiting for game auto-return to lobby...")
-            
+
             local safetyTimeout = 0
-            local maxSafety = 20  -- seconds to wait before forcing next cycle
-            
+            local maxSafety = 20
+
             while autoDungeonRunning and safetyTimeout < maxSafety do
-                -- Simple check: if no Mobs folder or it's empty → probably back in lobby
                 local mobs = workspace:FindFirstChild("Mobs")
                 if not mobs or #mobs:GetChildren() == 0 then
                     print("[AutoDungeon] Detected back in lobby (no mobs)")
                     break
                 end
-                
                 task.wait(1)
                 safetyTimeout = safetyTimeout + 1
             end
-            
+
             if safetyTimeout >= maxSafety then
-                print("[AutoDungeon] Safety timeout - assuming stuck, forcing next cycle")
+                print("[AutoDungeon] Safety timeout - forcing next cycle")
             end
-            
-            -- Extra settle time after return
-            task.wait(4)
-            
+
+            task.wait(4)  -- settle time after return
+
             print("[AutoDungeon] Ready for next cycle")
         end
-        
+
         print("[AutoDungeon] Auto Dungeon stopped")
-        mobAura.Stop()  -- cleanup
     end)
 end
 
@@ -1035,26 +1055,10 @@ do
         Opened = true
     })
 
-    -- Mob Aura toggle — now very simple
-    local MobAuraToggle = MainTab:Toggle({
-        Title = "Mob Aura V1",
-        Desc = "Slower + More Stable",
-        Checkbox = true,
-        Value = false,
-        Callback = function(enabled)
-            if enabled then
-                mobAura.Start()
-            else
-                mobAura.Stop()
-            end
-        end
-    })
-
     MainTab:Space()
 
     MainTab:Button({
-        Title = "Mob Aura V2",
-        Desc = "uses another method, click every 2-3 seconds for best result.",
+        Title = "Instant kill all spawned mobs",
         Icon = "zap",
         Color = Color3.fromHex("#fc0000"),
         Callback = function()
@@ -1080,10 +1084,10 @@ do
                 local mobsFolder = workspace:FindFirstChild("Mobs")
                 if not mobsFolder then return end
                 
-                local damage = 999999
-                local hit_datas = {}
+                local damage = 999999999
                 local targets = {}
-                
+                local hitCount = 0
+
                 for _, mob in mobsFolder:GetChildren() do
                     if not mob:IsA("Model") then continue end
                     
@@ -1097,34 +1101,27 @@ do
                     
                     if typeof(mobId) == "string" and #mobId >= 4 then
                         targets[mobId] = mob
-                        table.insert(hit_datas, {mobId, damage, weapon})
+                        -- Fire once per mob with a single hit_data entry
+                        HitMob:FireServer({{ mobId, damage, weapon }})
+                        hitCount += 1
                     end
                 end
 
-                if #hit_datas == 0 then
-                    -- notify no targets
+                if hitCount == 0 then
+                    WindUI:Notify({
+                        Title = "No Targets",
+                        Content = "No valid mobs found in workspace.",
+                        Icon = "alert-triangle",
+                        Duration = 4
+                    })
                     return
                 end
 
-                WindUI:Notify({ Title = "Activated!", Content = "Spamming hard — ping might spike briefly", Icon = "zap", Duration = 6 })
+                WindUI:Notify({ Title = "Activated!", Content = "Hitting " .. hitCount .. " mob(s)...", Icon = "zap", Duration = 4 })
 
-                local args = { hit_datas }
+                task.wait(2.0)  -- wait for server to process & rewards to register
 
-                local TOTAL_FIRES = 2000          -- tune 1200–3000; higher = more kills but riskier
-                local THREAD_COUNT = 8            -- sweet spot for most executors
-
-                local firesPerThread = math.ceil(TOTAL_FIRES / THREAD_COUNT)
-
-                for _ = 1, THREAD_COUNT do
-                    task.spawn(function()
-                        for i = 1, firesPerThread do
-                            HitMob:FireServer(unpack(args))
-                        end
-                    end)
-                end
-
-                task.wait(2.0)  -- minimal safe wait for rewards; increase to 2.5–3 if missing money
-
+                -- Cleanup: destroy all targeted mobs locally
                 for _, mob in pairs(targets) do
                     if mob and mob.Parent then
                         mob:Destroy()
@@ -1135,8 +1132,8 @@ do
                 -- for _, obj in mobsFolder:GetChildren() do if obj:IsA("Model") then obj:Destroy() end end
 
                 WindUI:Notify({
-                    Title = "Burst Complete",
-                    Content = "Sent ~" .. TOTAL_FIRES .. " hits\nLocal cleanup done",
+                    Title = "Done",
+                    Content = "Hit " .. hitCount .. " mob(s)\nLocal cleanup done",
                     Icon = "check-circle",
                     Duration = 5
                 })
@@ -1217,7 +1214,6 @@ do
 
     AutoFarmSection:Toggle({
         Title = "Auto Loot",
-        Desc = "Automatically collects all loot",
         Value = false,
         Callback = function(enabled)
             if enabled then
@@ -1254,7 +1250,6 @@ do
 
     AutoDungeonSection:Toggle({
         Title = "Auto Dungeon Farm",
-        Desc = "Teleports → activates Mob Aura V1 → waits → returns to lobby → repeats",
         Value = false,
         Callback = function(enabled)
             if enabled then
