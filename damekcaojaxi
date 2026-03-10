@@ -543,9 +543,23 @@ local itemNames = {
     "Banknote",  -- ← keep this if you still want banknotes highlighted
 }
 
-local function isTargetItem(obj)
-    return table.find(itemNames, obj.Name) ~= nil
+local function isStatuePart(obj)
+    local parent = obj.Parent
+    while parent and parent ~= workspace do
+        local map = workspace:FindFirstChild("Map")
+        if map and parent == map:FindFirstChild("Frog Statue") then
+            return true
+        end
+        parent = parent.Parent
+    end
+    return false
 end
+
+
+local function isTargetItem(obj)
+    return table.find(itemNames, obj.Name) ~= nil and not isStatuePart(obj)
+end
+
 
 local function addESP(item)
     if espObjects[item] then return end
@@ -650,7 +664,7 @@ workspace.DescendantAdded:Connect(function(desc)
     end
 
  -- SPECIAL FROG HANDLER (ONLY when itemGrabEnabled = true)
-    if desc.Name == "Frog" and itemGrabEnabled then
+    if desc.Name == "Frog" and itemGrabEnabled and not isStatuePart(desc) then
         task.delay(0.25, function()
             if not desc or not desc.Parent or not desc:IsDescendantOf(workspace) then return end
 
@@ -2663,160 +2677,6 @@ do
         })
     end
 end
-
-do
-    local suggestionTab = OtherSection:Tab({
-        Title = "Suggestions",
-        Border = true,
-    })
-
-    local suggestionSec1 = suggestionTab:Section({
-        Title = "Send suggestions!",
-    })
-
-
-    -- ===============================
-    --  SUGGESTIONS WEBHOOK SYSTEM
-    -- ===============================
-
-    local Players = game:GetService("Players")
-    local HttpService = game:GetService("HttpService")
-    local LocalPlayer = Players.LocalPlayer
-
-    -- 🔧 CONFIG
-    local WEBHOOK_URL = "https://discord.com/api/webhooks/1461430346133405891/NVDogiK4AvwHBNRbtynzpBQFhb4KzTQQ1tIlBJ3coY4S79g9OE4a34NknqMDdj7ztU0m"
-    local COOLDOWN_SECONDS = 60 * 60 -- 1 hour
-
-    -- ⏱ Cooldown tracker (session-based)
-    local lastSent = 0
-
-    -- 🌐 Executor HTTP resolver
-    local requestFunc =
-        (syn and syn.request)
-        or http_request
-        or request
-        or (fluxus and fluxus.request)
-
-    -- 🚨 Safety check
-    if not requestFunc then
-        warn("Executor does not support HTTP requests")
-    end
-
-    -- 📤 Send suggestion to Discord
-    local function sendWebhookMessage(message)
-        if type(message) ~= "string" or message == "" then
-            return false, "Message cannot be empty"
-        end
-
-        if #message > 1500 then
-            return false, "Message too long (max ~1500 chars)"
-        end
-
-        local now = os.time()
-        if now - lastSent < COOLDOWN_SECONDS then
-            local remaining = COOLDOWN_SECONDS - (now - lastSent)
-            return false, "Cooldown active (" .. remaining .. "s left)"
-        end
-
-        if not requestFunc then
-            return false, "HTTP not supported by executor"
-        end
-
-        -- 🎨 Discord Embed Payload
-        local payload = {
-            embeds = {
-                {
-                    title = "📩 New Suggestion",
-                    color = 0x30ff6a, -- green
-                    fields = {
-                        {
-                            name = "👤 Player",
-                            value = LocalPlayer.Name,
-                            inline = true
-                        },
-                        {
-                            name = "🆔 UserId",
-                            value = tostring(LocalPlayer.UserId),
-                            inline = true
-                        },
-                        {
-                            name = "💬 Message",
-                            value = message,
-                            inline = false
-                        }
-                    },
-                    footer = {
-                        text = "CHITO Hub • Suggestions System"
-                    },
-                    timestamp = DateTime.now():ToIsoDate()
-                }
-            }
-        }
-
-        local response = requestFunc({
-            Url = WEBHOOK_URL,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = HttpService:JSONEncode(payload)
-        })
-
-        -- Discord returns 204 No Content on success
-        if response and (response.StatusCode == 204 or response.StatusCode == 200) then
-            lastSent = now
-            return true
-        end
-
-        return false, response and response.Body or "Webhook failed"
-    end
-
-    -- ===============================
-    --  WINDUI INPUT + BUTTON
-    -- ===============================
-
-    local suggestionText = ""
-
-    suggestionTab:Input({
-        Flag = "Suggestion_Text",
-        Title = "Send suggestions & bugs",
-        Desc = "1 hour cooldown • Logged to Discord",
-        Value = "",
-        InputIcon = "bird",
-        Type = "Textarea",
-        Placeholder = "Type your suggestion here...",
-        Callback = function(input)
-            suggestionText = input
-        end
-    })
-
-    suggestionTab:Button({
-        Title = "Send Suggestion",
-        Icon = "send",
-        Color = Color3.fromHex("#30ff6a"),
-        Callback = function()
-            local ok, msg = sendWebhookMessage(suggestionText)
-
-            if ok then
-                WindUI:Notify({
-                    Title = "Suggestion Sent ✅",
-                    Content = "Thanks! Your message was logged.",
-                    Icon = "check",
-                    Duration = 3
-                })
-                suggestionText = ""
-            else
-                WindUI:Notify({
-                    Title = "Error ❌",
-                    Content = msg,
-                    Icon = "x",
-                    Duration = 4
-                })
-            end
-        end
-    })
-end
-
 
 -- */ Using Nebula Icons /* --
 --[[
