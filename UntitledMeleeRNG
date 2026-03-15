@@ -114,7 +114,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v1.0 [BETA]",
+        Title = "v1.1 [BETA]",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
