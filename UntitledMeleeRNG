@@ -328,6 +328,8 @@ local ConfirmAscend = Remotes:WaitForChild("ConfirmAscend")
 
 local autoLootRunning = false
 local lootThread = nil
+local KillAuraEnabled = false
+local KillAuraThread = nil
 
 local function fireLoot(part)
     print("[AutoLoot] Attempting to fire touch on: " .. part:GetFullName())
@@ -1057,87 +1059,119 @@ do
 
     MainTab:Space()
 
-    MainTab:Button({
-        Title = "Instant kill all spawned mobs",
+    MainTab:Toggle({
+        Title = "KillAura",
+        Desc = "automatically hits all spawned mobs, might take slightly longer in dungeon depending on boss's HP",
         Icon = "zap",
-        Color = Color3.fromHex("#fc0000"),
-        Callback = function()
-            task.spawn(function()
-                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-                local HitMob = remotes and remotes:FindFirstChild("HitMob")
-                
-                local assets = ReplicatedStorage:FindFirstChild("Assets")
-                local weapons = assets and assets:FindFirstChild("Weapons")
-                local weapon = weapons and weapons:FindFirstChild("Rusty Sword")
-                
-                if not (HitMob and weapon) then
+        Default = false,
+        Callback = function(value)
+            KillAuraEnabled = value
+
+            if value then
+                if KillAuraThread then return end
+
+                KillAuraThread = task.spawn(function()
+                    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                    local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+                    local HitMob = Remotes:WaitForChild("HitMob")
+                    local Assets = ReplicatedStorage:WaitForChild("Assets")
+                    local Weapons = Assets:WaitForChild("Weapons")
+                    local weapon = Weapons:WaitForChild("Hellscape Greatsword")
+                    local dmgMult = 1
+                    local success, result = pcall(function()
+                        return 1 + Remotes:GetUpgradeValue():InvokeServer("Damage Multiplier") / 100
+                    end)
+                    if success then dmgMult = result end
+
+                    local stopScript = false
+                    local args = {}
+                    local mobsLocation = nil
+                    local enemyTable = {}
+                    local currEnemies = {}
+                    local spawnMobConnection
+
+                    -- Mob spawn event connection
+                    if Remotes:FindFirstChild("SpawnMob") then
+                        spawnMobConnection = Remotes.SpawnMob.OnClientEvent:Connect(function(mob)
+                            if mob.ID then
+                                enemyTable[mob.ID] = mob.Health or 10000000
+                                currEnemies[mob.ID] = true
+                            end
+                        end)
+                    end
+
                     WindUI:Notify({
-                        Title = "Error",
-                        Content = "This isn't supposed to happen, contact script owner.",
-                        Icon = "alert-triangle",
+                        Title = "KillAura",
+                        Content = "Activated. Will clean up mobs and connections on stop.",
+                        Icon = "zap",
                         Duration = 4
                     })
-                    return
-                end
-                
-                local mobsFolder = workspace:FindFirstChild("Mobs")
-                if not mobsFolder then return end
-                
-                local damage = 999999999
-                local targets = {}
-                local hitCount = 0
 
-                for _, mob in mobsFolder:GetChildren() do
-                    if not mob:IsA("Model") then continue end
-                    
-                    local mobId = 
-                        mob:GetAttribute("Id") or
-                        mob:GetAttribute("ID") or
-                        mob:GetAttribute("MobId") or
-                        mob:GetAttribute("UUID") or
-                        mob:GetAttribute("Identifier") or
-                        mob:GetAttribute("mobId")
-                    
-                    if typeof(mobId) == "string" and #mobId >= 4 then
-                        targets[mobId] = mob
-                        -- Fire once per mob with a single hit_data entry
-                        HitMob:FireServer({{ mobId, damage, weapon }})
-                        hitCount += 1
+                    while KillAuraEnabled do
+                        -- Find mobs location
+                        if workspace:FindFirstChild("Mobs") then
+                            mobsLocation = workspace.Mobs
+                        elseif ReplicatedStorage:FindFirstChild("Mobs") then
+                            mobsLocation = ReplicatedStorage.Mobs
+                        else
+                            mobsLocation = nil
+                        end
+
+                        if not mobsLocation then
+                            task.wait(0.1)
+                            continue
+                        end
+
+                        local damage = dmgMult * (weapon:GetAttribute("Damage") or 100) * 4
+                        for _, v in pairs(mobsLocation:GetChildren()) do
+                            if v and v.ClassName == "Model" and v:FindFirstChild("HumanoidRootPart") then
+                                local mobID = v:GetAttribute("ID")
+                                if mobID then
+                                    table.insert(args, { mobID, damage, weapon })
+                                    currEnemies[mobID] = true
+                                    local enemy = enemyTable[mobID]
+                                    if enemy then
+                                        enemyTable[mobID] = enemy - damage
+                                    else
+                                        enemyTable[mobID] = 10000000 - damage
+                                    end
+                                    if enemy and enemy <= 0 then
+                                        pcall(function()
+                                            if v and v.Parent then v:Destroy() end
+                                        end)
+                                        enemyTable[mobID] = nil
+                                    end
+                                end
+                            end
+                        end
+
+                        for i, v in pairs(enemyTable) do
+                            if not currEnemies[i] then
+                                enemyTable[i] = nil
+                            end
+                        end
+                        currEnemies = {}
+
+                        if #args > 0 then
+                            pcall(function()
+                                HitMob:FireServer(args)
+                            end)
+                        end
+                        args = {}
+                        task.wait(0.1)
                     end
-                end
 
-                if hitCount == 0 then
+                    -- Cleanup
+                    if spawnMobConnection then spawnMobConnection:Disconnect() end
                     WindUI:Notify({
-                        Title = "No Targets",
-                        Content = "No valid mobs found in workspace.",
-                        Icon = "alert-triangle",
-                        Duration = 4
+                        Title = "KillAura",
+                        Content = "Stopped and cleaned up.",
+                        Icon = "power",
+                        Duration = 3
                     })
-                    return
-                end
-
-                WindUI:Notify({ Title = "Activated!", Content = "Hitting " .. hitCount .. " mob(s)...", Icon = "zap", Duration = 4 })
-
-                task.wait(2.0)  -- wait for server to process & rewards to register
-
-                -- Cleanup: destroy all targeted mobs locally
-                for _, mob in pairs(targets) do
-                    if mob and mob.Parent then
-                        mob:Destroy()
-                    end
-                end
-
-                -- Optional full nuke
-                -- for _, obj in mobsFolder:GetChildren() do if obj:IsA("Model") then obj:Destroy() end end
-
-                WindUI:Notify({
-                    Title = "Done",
-                    Content = "Hit " .. hitCount .. " mob(s)\nLocal cleanup done",
-                    Icon = "check-circle",
-                    Duration = 5
-                })
-            end)
+                    KillAuraThread = nil
+                end)
+            end
         end
     })
 
@@ -1214,6 +1248,7 @@ do
 
     AutoFarmSection:Toggle({
         Title = "Auto Loot",
+        Desc = "Automatically collects all loot",
         Value = false,
         Callback = function(enabled)
             if enabled then
@@ -1232,31 +1267,12 @@ do
         Opened = true
     })
 
-    local dungeonDropdown = AutoDungeonSection:Dropdown({
-        Title = "Select Dungeon",
-        Values = {
-            "Sand Titan [Desert]",
-            "Ice Giant [Snow]",
-            "Jungle Maniac [Jungle]",
-            "Magma Reaper [Volcano]",
-            "Shadow Reaper [Shadow Dungeon]"
-        },
-        Value = selectedDungeon,  -- uses the default you already have
-        Callback = function(value)
-            selectedDungeon = value
-            print("[Auto Dungeon] Selected: " .. value)
-        end
-    })
-
-    AutoDungeonSection:Toggle({
-        Title = "Auto Dungeon Farm",
-        Value = false,
-        Callback = function(enabled)
-            if enabled then
-                startAutoDungeon()
-            else
-                stopAutoDungeon()
-            end
+    AutoDungeonSection:Button({
+        Title = "FREE Auto Raid Gamepass",
+        Desc = "unlocks auto raid button at bottom left corner.",
+        Color = Color3.fromHex("#30a2ff"),
+        Callback = function()
+            game:GetService("Players").LocalPlayer.PlayerGui.MainGUI.OptionsList.AutoRaidBtn.Visible = true
         end
     })
 
@@ -1411,6 +1427,22 @@ do
     })
 
 
+    WorldSection:Button({
+        Title = "Forgotten Valley",
+        Color = Color3.fromHex("#30a2ff"),
+        Callback = function()
+            local portal = workspace:FindFirstChild("Areas", true) 
+                and workspace.Areas:FindFirstChild("Shadow Dungeon") 
+                and workspace.Areas["Shadow Dungeon"]:FindFirstChild("NextPortal")
+            if portal and portal:FindFirstChild("TouchInterest") then
+                firePortalTouch(portal)
+            else
+                print("[Teleport] Shadow Dungeon NextPortal not found!")
+            end
+        end
+    })
+
+
     local DungeonSection = TeleportTab:Section({
         Title = "Dungeons / Bosses",
         Opened = true
@@ -1459,6 +1491,52 @@ do
         Color = Color3.fromHex("#0f0e1f"),
         Callback = function()
             teleportTo(CFrame.new(250.160614, -50.9743614, -5904.80664) * CFrame.Angles(0, 0, 0)) 
+        end
+    })
+
+    -- Forgotten Giant [Forgotten Valley]
+    DungeonSection:Button({
+        Title = "Forgotten Giant [Forgotten Valley]",
+        Color = Color3.fromHex("#57789d"),
+        Callback = function()
+            teleportTo(CFrame.new(351, 81, -7107) * CFrame.Angles(0, 0, 0)) 
+        end
+    })
+
+    local MachinesSection = TeleportTab:Section({
+        Title = "Machines",
+        Opened = true
+    })
+
+    MachinesSection:Button({
+        Title = "Fountain of Skill",
+        Color = Color3.fromHex("#ff0000"),
+        Callback = function()
+            teleportTo(CFrame.new(842, 90, -7207) * CFrame.Angles(0, 0, 0))
+        end
+    })
+
+    MachinesSection:Button({
+        Title = "Fusion Machine",
+        Color = Color3.fromHex("#ff0000"),
+        Callback = function()
+            teleportTo(CFrame.new(530, 46, -839) * CFrame.Angles(0, 0, 0)) 
+        end
+    })
+
+    MachinesSection:Button({
+        Title = "Totem of Fortune",
+        Color = Color3.fromHex("#ff0000"),
+        Callback = function()
+            teleportTo(CFrame.new(1008, 113, -2395) * CFrame.Angles(0, 0, 0))
+        end
+    })
+
+    MachinesSection:Button({
+        Title = "Weapon Crafter",
+        Color = Color3.fromHex("#ff0000"),
+        Callback = function()
+            teleportTo(CFrame.new(486, -50, -5907) * CFrame.Angles(0, 0, 0))
         end
     })
 end
@@ -1591,6 +1669,261 @@ do
             loadstring(game:HttpGet('https://raw.githubusercontent.com/DarkNetworks/Infinite-Yield/main/latest.lua'))()
         end
     })
+end
+
+
+-- */ Dupe Tab */ --
+do
+    local DupeTab = ElementsSection:Tab({
+        Title = "Dupe/INF SP",
+        Icon = "solar:folder-with-files-bold",
+        IconColor = Red,
+        Border = true,
+    })
+
+    local WarningSection = DupeTab:Section({
+        Title = "WARNING - READ BEFORE USING",
+        Opened = true
+    })
+
+    WarningSection:Paragraph({
+        Title = "GAME BREAKING FEATURES",
+        Desc = "Don't blame me if you carelessly use these features and break your game."
+    })
+
+    WarningSection:Paragraph({
+        Title = "BE WARY",
+        Desc = "You can buy more swords than you can afford, causing your SP to go to negative; but you can not sell more than you have.\n",
+    })
+
+    WarningSection:Paragraph({
+        Title = "HOW TO DUPE",
+        Desc = "1) Open dupe section and write the weapon type (Normal/Fusion) and name (Capitalize correctly). It is REQUIRED to have that weapon rolled already.\n2) Choose amount\n3) Save Settings\n4) Press Buy\n it will use the same amount of SP to buy the sword, which you would've gotten by selling the sword.",
+    })
+
+    WarningSection:Paragraph({
+        Title = "HOW TO GET INFINITE SP",
+        Desc = "1) First farm kills so you can Ascend\n2) Buy the max amount of swords you can get - go to negative SPs\n3) Once you get thousands of swords duped - Ascend (Resets your SP)\n4) Then sell those swords.\n5) Enjoy your free SP",
+    })
+
+
+
+    WarningSection:Space()
+
+
+
+    -- Fountain Controls (you can rename the section title later)
+    local ControlsSection = DupeTab:Section({
+        Title = "Dupe",   -- ← change this string when ready
+        Opened = true
+    })
+
+    local savedArgs = {
+        weapon = "Dead Scythe",
+        mode   = "Normal",
+        amount = 1
+    }
+
+    -- Weapon name - :Input instead of :Textbox
+    ControlsSection:Input({
+        Title = "Weapon Name",
+        Placeholder = "e.g. Dead Scythe, Sword, etc.",
+        Value = savedArgs.weapon,  -- initial value
+        Callback = function(newValue)
+            savedArgs.weapon = tostring(newValue):match("^%s*(.-)%s*$") or newValue  -- trim whitespace
+        end
+    })
+
+    -- Type - :Dropdown with Values (not Items)
+    ControlsSection:Dropdown({
+        Title = "Type",
+        Values = {"Normal", "Fused"},
+        Value = savedArgs.mode,  -- initial selection
+        Callback = function(selected)
+            savedArgs.mode = selected
+        end
+    })
+
+    -- Amount - :Slider (numeric control with min/max/step)
+    ControlsSection:Slider({
+        Title = "Amount",
+        Value = {
+            Min = 1,
+            Max = 1000,
+            Default = savedArgs.amount
+        },
+        Step = 1,
+        Callback = function(value)
+            savedArgs.amount = value
+        end
+    })
+
+    ControlsSection:Space()
+
+    -- Save button (green)
+    ControlsSection:Button({
+        Title = "Save Settings",
+        Color = Color3.fromHex("#f9bc37"),  -- green
+        Callback = function()
+            print("Settings saved → Weapon:", savedArgs.weapon, "| Mode:", savedArgs.mode, "| Amount:", savedArgs.amount)
+            WindUI:Notify({
+                Title = "Settings Saved",
+                Content = savedArgs.weapon .. " (" .. savedArgs.mode .. ") × " .. savedArgs.amount,
+                Duration = 3.5
+            })
+        end
+    })
+
+    ControlsSection:Space()
+
+    -- Buy button (-amount)
+    ControlsSection:Button({
+        Title = "Buy - takes Skill Points; gives you sword",
+        Color = Color3.fromHex("#911b1b"),
+        Callback = function()
+            if savedArgs.amount <= 0 then
+                WindUI:Notify({Title = "Invalid Amount", Content = "Amount must be > 0", Duration = 4})
+                return
+            end
+            local args = { savedArgs.weapon, savedArgs.mode, -savedArgs.amount }
+            local remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
+            local remote = remotes:FindFirstChild("FountainSacrifice")
+            if remote then
+                remote:InvokeServer(unpack(args))
+                WindUI:Notify({Title = "Duped sword.", Content = "-" .. savedArgs.amount, Duration = 2.5})
+            else
+                warn("[Dupe] FountainSacrifice remote missing!")
+            end
+        end
+    })
+
+    -- Sell button (+amount)
+    ControlsSection:Button({
+        Title = "Sell - gives Skill points; takes sword from you.",
+        Color = Color3.fromHex("#30ff6a"),
+        Callback = function()
+            if savedArgs.amount <= 0 then
+                WindUI:Notify({Title = "Invalid Amount", Content = "Amount must be > 0", Duration = 4})
+                return
+            end
+            local args = { savedArgs.weapon, savedArgs.mode, savedArgs.amount }
+            local remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
+            local remote = remotes:FindFirstChild("FountainSacrifice")
+            if remote then
+                remote:InvokeServer(unpack(args))
+                WindUI:Notify({Title = "Sold sword.", Content = "+" .. savedArgs.amount, Duration = 2.5})
+            else
+                warn("[Dupe] FountainSacrifice remote missing!")
+            end
+        end
+    })
+
+
+    ControlsSection:Space()
+
+    ControlsSection:Button({
+        Title = "Print all weapon names in console (F9)",
+        Callback = function()
+            -- Get the weapons folder
+            local weaponsFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Assets")
+                and game:GetService("ReplicatedStorage").Assets:FindFirstChild("Weapons")
+
+            if not weaponsFolder then
+                warn("[Weapon List] Weapons folder not found in ReplicatedStorage.Assets!")
+                return
+            end
+
+            -- Function to determine rarity based on OneIn value
+            local function getRarity(oneInValue)
+                if oneInValue >= 1000000 then return "Mythical"
+                elseif oneInValue >= 100000 then return "Legendary"
+                elseif oneInValue >= 10000 then return "Epic"
+                elseif oneInValue >= 1000 then return "Rare"
+                elseif oneInValue >= 100 then return "Uncommon"
+                else return "Common" end
+            end
+
+            -- Create tables to store weapon data by rarity
+            local weaponsByRarity = {
+                Mythical = {},
+                Legendary = {},
+                Epic = {},
+                Rare = {},
+                Uncommon = {},
+                Common = {}
+            }
+
+            -- Iterate through all weapons
+            local found = 0
+            for _, weapon in ipairs(weaponsFolder:GetChildren()) do
+                if weapon:IsA("Model") then
+                    local damage = weapon:GetAttribute("Damage")
+                    local oneIn  = weapon:GetAttribute("OneIn")
+                    local rank   = weapon:GetAttribute("Rank")
+
+                    if damage and oneIn then
+                        local rarity = getRarity(oneIn)
+                        table.insert(weaponsByRarity[rarity], {
+                            name   = weapon.Name,
+                            damage = damage,
+                            oneIn  = oneIn,
+                            rank   = rank,
+                            rarity = rarity
+                        })
+                        found = found + 1
+                    end
+                end
+            end
+
+            if found == 0 then
+                print("[Weapon List] No weapons with Damage & OneIn attributes found.")
+                return
+            end
+
+            -- Print header
+            print("=== WEAPONS BY RARITY (" .. found .. " total valid weapons) ===\n")
+
+            -- Print in order from rarest to common
+            local rarityOrder = {"Mythical", "Legendary", "Epic", "Rare", "Uncommon", "Common"}
+
+            for _, rarity in ipairs(rarityOrder) do
+                local weapons = weaponsByRarity[rarity]
+                if #weapons > 0 then
+                    -- Sort by OneIn descending (higher = rarer within tier)
+                    table.sort(weapons, function(a, b)
+                        return a.oneIn > b.oneIn
+                    end)
+
+                    print("=== " .. string.upper(rarity) .. " (" .. #weapons .. ") ===")
+
+                    for _, w in ipairs(weapons) do
+                        print(string.format(
+                            "%-28s | Dmg: %-6s | 1/%-8s | Rank: %s",
+                            w.name,
+                            tostring(w.damage),
+                            tostring(w.oneIn),
+                            w.rank or "N/A"
+                        ))
+                    end
+                    print("")  -- separator between rarity groups
+                end
+            end
+
+            -- Summary
+            print("=== SUMMARY ===")
+            local total = 0
+            for _, rarity in ipairs(rarityOrder) do
+                local count = #weaponsByRarity[rarity]
+                if count > 0 then
+                    print(rarity .. ": " .. count)
+                    total = total + count
+                end
+            end
+            print("Total weapons found: " .. total)
+            print("───────────────────────────────────────────────")
+        end
+    })
+
 end
 
 
