@@ -1749,7 +1749,7 @@ do
         Title = "Amount",
         Value = {
             Min = 1,
-            Max = 100000000,
+            Max = 1000000000000000000000000000000000000000000000000000000,
             Default = savedArgs.amount
         },
         Step = 1,
