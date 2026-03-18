@@ -1353,97 +1353,95 @@ do
         "Kill Multiplier",
         "Weapons Equipped"
     }
-
     table.sort(upgradeNames)
 
-    local selectedUpgrade = upgradeNames[1]          -- default = first one
-    local autoUpgradeRunning = false
-    local autoUpgradeThread = nil
-
-    local function buySelectedUpgrade()
-        local args = { selectedUpgrade }
-        local success, err = pcall(function()
-            game:GetService("ReplicatedStorage")
-                :WaitForChild("Remotes")
-                :WaitForChild("BuyUpgrade")
-                :InvokeServer(unpack(args))
-        end)
-        if not success then
-            warn("[AutoUpgrade] Buy failed → " .. tostring(err))
-        end
-    end
-
+    local selectedUpgrades = {}           -- table of selected upgrade names
     local autoUpgradeRunning = false
     local upgradeThreads = {}
 
-    local function buySelectedUpgrade()
-        -- your existing pcall invoke code
-        local success, err = pcall(function()
+    local function buyUpgrade(name)
+        pcall(function()
             game:GetService("ReplicatedStorage")
                 :WaitForChild("Remotes")
                 :WaitForChild("BuyUpgrade")
-                :InvokeServer(selectedUpgrade)
+                :InvokeServer(name)
         end)
-        if not success then
-            warn("[Upgrade] Error: " .. tostring(err))
+        -- You can add warn() here if you want, but silent is usually cleaner for spam
+    end
+
+    local function spamLoop()
+        while autoUpgradeRunning do
+            for _, upgrade in ipairs(selectedUpgrades) do
+                buyUpgrade(upgrade)
+            end
+            task.wait(0.025)   -- ~40× per sec total — aggressive but not instant-crash level
+            -- If you want nuclear: task.wait() or remove wait completely (riskier)
         end
     end
 
     local function startAutoUpgrade()
         if autoUpgradeRunning then return end
+        
+        if #selectedUpgrades == 0 then
+            WindUI:Notify({
+                Title = "Nothing selected",
+                Content = "Please select at least one upgrade first.",
+                Duration = 5,
+            })
+            return
+        end
+
         autoUpgradeRunning = true
 
         WindUI:Notify({
             Title = "Auto Upgrade",
-            Content = "Started – multi-thread MAX spam",
+            Content = "Spamming " .. #selectedUpgrades .. " upgrade(s)",
             Duration = 4.5
         })
 
-        local THREAD_COUNT = 8  -- change to 4/6/10/12/... whatever survives
+        local THREAD_COUNT = 5   -- 4–8 usually good balance; too many = more likely to timeout/kick
 
         for i = 1, THREAD_COUNT do
-            table.insert(upgradeThreads, task.spawn(function()
-                while autoUpgradeRunning do
-                    buySelectedUpgrade()
-                    -- no task.wait() → full aggression
-                end
-            end))
+            table.insert(upgradeThreads, task.spawn(spamLoop))
         end
     end
 
     local function stopAutoUpgrade()
         autoUpgradeRunning = false
-        for _, thr in ipairs(upgradeThreads) do
-            task.cancel(thr)
-        end
+        for _, t in ipairs(upgradeThreads) do task.cancel(t) end
         upgradeThreads = {}
+
         WindUI:Notify({
             Title = "Auto Upgrade",
-            Content = "Stopped",
+            Content = "Stopped.",
             Duration = 3
         })
     end
 
+    -- ─── UI ───────────────────────────────────────────────
+
     AutoUpgradeSection:Dropdown({
-        Title = "Upgrade",
+        Title = "Select Upgrades",
         Values = upgradeNames,
-        Value = selectedUpgrade,
-        Callback = function(newValue)
-            selectedUpgrade = newValue
-            -- Optional: if already running → restart loop with new selection
+        Multi = true,
+        Value = {},                     -- or Value = {"Damage Multiplier", "Mana Multiplier"} for defaults
+        Callback = function(newSelected)
+            selectedUpgrades = newSelected
+            
+            -- Optional: auto-restart when selection changes while running
             if autoUpgradeRunning then
                 stopAutoUpgrade()
-                task.wait(0.1)
+                task.wait(0.12)
                 startAutoUpgrade()
             end
-        end
+        end,
     })
 
     AutoUpgradeSection:Space()
 
     AutoUpgradeSection:Toggle({
-        Title = "Auto Upgrade",
-        Desc = "will show old upgrade until you buy it manually",
+        Title = "Enable Auto Upgrade",
+        Desc = "Spams upgrade on selected stats.",
         Value = false,
         Callback = function(enabled)
             if enabled then
@@ -1454,6 +1452,7 @@ do
         end
     })
 
+    
     -- AUTO TOTEM SACRIFICE
     local AutoSacSection = AutomationTab:Section({
         Title = "Auto Totem Sacrifice",
