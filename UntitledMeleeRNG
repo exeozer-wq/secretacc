@@ -114,7 +114,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v1.1 [BETA]",
+        Title = "v1.2 [BETA]",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -747,6 +747,50 @@ local function toggleAutoAscend(enabled)
     end
 end
 
+-- ════════════════════════════════════════════════════════════════
+--   Remove game's built-in AFK / auto-rejoin script
+-- ════════════════════════════════════════════════════════════════
+do
+    local player = game:GetService("Players").LocalPlayer
+    
+    -- Wait a tiny bit so PlayerScripts are loaded
+    task.wait(0.8)
+    
+    local afkScript = player:WaitForChild("PlayerScripts"):FindFirstChild("AFKScript")
+    
+    if afkScript then
+        -- Option A: Destroy it completely (most reliable)
+        afkScript:Destroy()
+        print("[Anti-AFK] Removed game's AFKScript (auto-rejoin disabled)")
+        
+        -- Option B: or just disable it (sometimes safer if game checks existence)
+        -- afkScript.Disabled = true
+        -- print("[Anti-AFK] Disabled game's AFKScript")
+    else
+        print("[Anti-AFK] No AFKScript found in PlayerScripts → nothing to remove")
+    end
+end
+
+-- ════════════════════════════════════════════════════════════════
+--   Our own simple anti-AFK (prevents kick without rejoining)
+-- ════════════════════════════════════════════════════════════════
+do
+    local VirtualUser = game:GetService("VirtualUser")
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    
+    -- This is the classic & very reliable method used by most hubs
+    LocalPlayer.Idled:Connect(function()
+        -- Fires when Roblox thinks you're AFK (~20 min mark)
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())   -- tiny right-click simulation
+        end)
+    end)
+    
+    print("[Anti-AFK] CHITO anti-kick system activated")
+end
+
 
 -----------------------------------------------------------------SECONDARY FUNCTIONS START FROM HERE----------------------------
 
@@ -1291,6 +1335,273 @@ do
             toggleAutoAscend(enabled)
         end
     })
+
+    local AutoUpgradeSection = AutomationTab:Section({
+        Title = "Auto Upgrade",
+        Opened = true
+    })
+
+    local upgradeNames = {
+        "Enemy Limit",
+        "Mana Multiplier",
+        "Damage Multiplier",
+        "Boss Spawn Chance",
+        "Spin Speed",
+        "RNG Luck",
+        "Skill Point Multiplier",
+        "Enemy Spawn Rate",
+        "Kill Multiplier",
+        "Weapons Equipped"
+    }
+
+    table.sort(upgradeNames)
+
+    local selectedUpgrade = upgradeNames[1]          -- default = first one
+    local autoUpgradeRunning = false
+    local autoUpgradeThread = nil
+
+    local function buySelectedUpgrade()
+        local args = { selectedUpgrade }
+        local success, err = pcall(function()
+            game:GetService("ReplicatedStorage")
+                :WaitForChild("Remotes")
+                :WaitForChild("BuyUpgrade")
+                :InvokeServer(unpack(args))
+        end)
+        if not success then
+            warn("[AutoUpgrade] Buy failed → " .. tostring(err))
+        end
+    end
+
+    local autoUpgradeRunning = false
+    local upgradeThreads = {}
+
+    local function buySelectedUpgrade()
+        -- your existing pcall invoke code
+        local success, err = pcall(function()
+            game:GetService("ReplicatedStorage")
+                :WaitForChild("Remotes")
+                :WaitForChild("BuyUpgrade")
+                :InvokeServer(selectedUpgrade)
+        end)
+        if not success then
+            warn("[Upgrade] Error: " .. tostring(err))
+        end
+    end
+
+    local function startAutoUpgrade()
+        if autoUpgradeRunning then return end
+        autoUpgradeRunning = true
+
+        WindUI:Notify({
+            Title = "Auto Upgrade",
+            Content = "Started – multi-thread MAX spam",
+            Duration = 4.5
+        })
+
+        local THREAD_COUNT = 8  -- change to 4/6/10/12/... whatever survives
+
+        for i = 1, THREAD_COUNT do
+            table.insert(upgradeThreads, task.spawn(function()
+                while autoUpgradeRunning do
+                    buySelectedUpgrade()
+                    -- no task.wait() → full aggression
+                end
+            end))
+        end
+    end
+
+    local function stopAutoUpgrade()
+        autoUpgradeRunning = false
+        for _, thr in ipairs(upgradeThreads) do
+            task.cancel(thr)
+        end
+        upgradeThreads = {}
+        WindUI:Notify({
+            Title = "Auto Upgrade",
+            Content = "Stopped",
+            Duration = 3
+        })
+    end
+
+    AutoUpgradeSection:Dropdown({
+        Title = "Upgrade",
+        Values = upgradeNames,
+        Value = selectedUpgrade,
+        Callback = function(newValue)
+            selectedUpgrade = newValue
+            -- Optional: if already running → restart loop with new selection
+            if autoUpgradeRunning then
+                stopAutoUpgrade()
+                task.wait(0.1)
+                startAutoUpgrade()
+            end
+        end
+    })
+
+    AutoUpgradeSection:Space()
+
+    AutoUpgradeSection:Toggle({
+        Title = "Auto Upgrade",
+        Desc = "will show old upgrade until you buy it manually",
+        Value = false,
+        Callback = function(enabled)
+            if enabled then
+                startAutoUpgrade()
+            else
+                stopAutoUpgrade()
+            end
+        end
+    })
+
+    -- AUTO TOTEM SACRIFICE
+    local AutoSacSection = AutomationTab:Section({
+        Title = "Auto Totem Sacrifice",
+        Opened = true
+    })
+
+    local selectedWeapon = nil
+    local autoSacEnabled = false
+    local autoSacThread = nil
+    local lastSacTime = 0
+
+    -- Dropdown FIRST – so it's defined when refresh is called
+    local sacrificeDropdown = AutoSacSection:Dropdown({
+        Title = "Weapon to Sacrifice",
+        Values = {"None"},
+        Value = "None",
+        Callback = function(val)
+            selectedWeapon = val
+        end
+    })
+
+    local function refreshWeaponNames()
+        local success, result = pcall(function()
+            return Remotes:WaitForChild("GetWeaponsInv"):InvokeServer()
+        end)
+
+        if not success or type(result) ~= "table" then
+            WindUI:Notify({
+                Title = "Inventory Error",
+                Content = "Failed to fetch weapon names",
+                Duration = 4
+            })
+            return
+        end
+
+        local weaponSet = {}  -- unique names only
+
+        -- Your exact format: array of tables with ["Name"]
+        for _, entry in pairs(result) do
+            if type(entry) == "table" and entry["Name"] and type(entry["Name"]) == "string" then
+                weaponSet[entry["Name"]] = true
+            end
+        end
+
+        local options = {"None"}
+        for name in pairs(weaponSet) do
+            table.insert(options, name)
+        end
+        table.sort(options)
+
+        -- NOW it's safe to call :Refresh
+        sacrificeDropdown:Refresh(options)
+
+        local count = #options - 1
+        WindUI:Notify({
+            Title = "Weapons Refreshed",
+            Content = count .. (count == 1 and " weapon" or " weapons") .. " loaded",
+            Duration = 4
+        })
+    end
+
+    -- Perform 25 sacrifices
+    local function do25Sacrifices()
+        if not selectedWeapon or selectedWeapon == "None" then
+            WindUI:Notify({Title = "No Weapon Selected", Content = "Choose a weapon first", Duration = 4})
+            return false
+        end
+
+        WindUI:Notify({
+            Title = "Sacrificing",
+            Content = "Sending 25× " .. selectedWeapon .. "...",
+            Duration = 5
+        })
+
+        local successCount = 0
+        for i = 1, 25 do
+            local ok = pcall(function()
+                Remotes:WaitForChild("TotemConfirm"):InvokeServer(selectedWeapon)
+            end)
+            if ok then successCount = successCount + 1 end
+            task.wait(0.08)
+        end
+
+        WindUI:Notify({
+            Title = "Batch Done",
+            Content = successCount .. "/25 succeeded",
+            Duration = 6
+        })
+
+        return successCount == 25
+    end
+
+    local function startAutoSacrifice()
+        if autoSacThread then return end
+        autoSacEnabled = true
+
+        autoSacThread = task.spawn(function()
+            WindUI:Notify({
+                Title = "Auto Totem Sacrifice",
+                Content = "Activated — runs 25× every ~61 min",
+                Duration = 5.5
+            })
+
+            while autoSacEnabled do
+                local now = os.time()
+                if now - lastSacTime >= 3660 then
+                    if do25Sacrifices() then
+                        lastSacTime = now
+                    else
+                        lastSacTime = now - 300  -- retry sooner if failed
+                    end
+                end
+                task.wait(60)
+            end
+            autoSacThread = nil
+        end)
+    end
+
+    local function stopAutoSacrifice()
+        autoSacEnabled = false
+        if autoSacThread then
+            task.cancel(autoSacThread)
+            autoSacThread = nil
+        end
+        WindUI:Notify({Title = "Auto Sacrifice", Content = "Stopped", Duration = 3})
+    end
+
+    -- UI Elements – Refresh AFTER dropdown
+    AutoSacSection:Button({
+        Title = "Refresh Weapon Names",
+        Color = Color3.fromHex("#30a2ff"),
+        Callback = refreshWeaponNames
+    })
+
+    AutoSacSection:Space()
+
+    AutoSacSection:Toggle({
+        Title = "Auto Sacrifice",
+        Desc = "Sacrifices selected weapon 25 times every 61 minutes.",
+        Value = false,
+        Callback = function(state)
+            if state then
+                startAutoSacrifice()
+            else
+                stopAutoSacrifice()
+            end
+        end
+    })
 end
 
 
@@ -1669,6 +1980,56 @@ do
             loadstring(game:HttpGet('https://raw.githubusercontent.com/DarkNetworks/Infinite-Yield/main/latest.lua'))()
         end
     })
+
+    MiscTab:Space()
+
+    MiscTab:Button({
+        Title = "Old server finder",
+        Color = Color3.fromHex("#008927"),
+        Icon = "solar:flash-bold",
+        Callback = function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Spectrum-Trash/Addons/refs/heads/main/FindServer.lua"))()
+        end
+    })
+
+    MiscTab:Space()
+
+    MiscTab:Button({
+        Title = "Check server version",
+        Color = Color3.fromHex("#ecf574"),
+        Icon = "solar:flash-bold",
+        Callback = function()
+            local version = game.PlaceVersion
+            
+            -- You can also print it to console for debugging
+            print("Current PlaceVersion:", version)
+            
+            if version == 1611 then
+                WindUI:Notify({
+                    Title = "Server Check",
+                    Content = "Dupe is **supported** on this server (version 1611)",
+                    Duration = 6,
+                    -- You can customize these if your WindUI version supports them:
+                    -- Type = "Success", 
+                    -- Icon = "check" or similar
+                })
+            elseif version > 1611 then
+                WindUI:Notify({
+                    Title = "Server Check",
+                    Content = "Dupe **may not be supported** here (version " .. version .. ")",
+                    Duration = 7,
+                    -- Type = "Warning" if supported
+                })
+            else
+                -- Optional: handle older versions
+                WindUI:Notify({
+                    Title = "Server Check",
+                    Content = "Version " .. version .. " — older than known dupe support (1611)",
+                    Duration = 6,
+                })
+            end
+        end
+    })
 end
 
 
@@ -1749,7 +2110,7 @@ do
         Title = "Amount",
         Value = {
             Min = 1,
-            Max = 1000000000000000000000000000000000000000000000000000000,
+            Max = 1000,
             Default = savedArgs.amount
         },
         Step = 1,
@@ -2125,158 +2486,6 @@ do
     end
 end
 
-do
-    local suggestionTab = OtherSection:Tab({
-        Title = "Suggestions",
-        Border = true,
-    })
-
-    local suggestionSec1 = suggestionTab:Section({
-        Title = "Send suggestions!",
-    })
-
-
-    -- ===============================
-    --  SUGGESTIONS WEBHOOK SYSTEM
-    -- ===============================
-
-    local Players = game:GetService("Players")
-    local HttpService = game:GetService("HttpService")
-    local LocalPlayer = Players.LocalPlayer
-
-    -- 🔧 CONFIG
-    local WEBHOOK_URL = "https://discord.com/api/webhooks/1461430346133405891/NVDogiK4AvwHBNRbtynzpBQFhb4KzTQQ1tIlBJ3coY4S79g9OE4a34NknqMDdj7ztU0m"
-    local COOLDOWN_SECONDS = 60 * 60 -- 1 hour
-
-    -- ⏱ Cooldown tracker (session-based)
-    local lastSent = 0
-
-    -- 🌐 Executor HTTP resolver
-    local requestFunc =
-        (syn and syn.request)
-        or http_request
-        or request
-        or (fluxus and fluxus.request)
-
-    -- 🚨 Safety check
-    if not requestFunc then
-        warn("Executor does not support HTTP requests")
-    end
-
-    -- 📤 Send suggestion to Discord
-    local function sendWebhookMessage(message)
-        if type(message) ~= "string" or message == "" then
-            return false, "Message cannot be empty"
-        end
-
-        if #message > 1500 then
-            return false, "Message too long (max ~1500 chars)"
-        end
-
-        local now = os.time()
-        if now - lastSent < COOLDOWN_SECONDS then
-            local remaining = COOLDOWN_SECONDS - (now - lastSent)
-            return false, "Cooldown active (" .. remaining .. "s left)"
-        end
-
-        if not requestFunc then
-            return false, "HTTP not supported by executor"
-        end
-
-        -- 🎨 Discord Embed Payload
-        local payload = {
-            embeds = {
-                {
-                    title = "📩 New Suggestion",
-                    color = 0x30ff6a, -- green
-                    fields = {
-                        {
-                            name = "👤 Player",
-                            value = LocalPlayer.Name,
-                            inline = true
-                        },
-                        {
-                            name = "🆔 UserId",
-                            value = tostring(LocalPlayer.UserId),
-                            inline = true
-                        },
-                        {
-                            name = "💬 Message",
-                            value = message,
-                            inline = false
-                        }
-                    },
-                    footer = {
-                        text = "CHITO Hub • Suggestions System"
-                    },
-                    timestamp = DateTime.now():ToIsoDate()
-                }
-            }
-        }
-
-        local response = requestFunc({
-            Url = WEBHOOK_URL,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = HttpService:JSONEncode(payload)
-        })
-
-        -- Discord returns 204 No Content on success
-        if response and (response.StatusCode == 204 or response.StatusCode == 200) then
-            lastSent = now
-            return true
-        end
-
-        return false, response and response.Body or "Webhook failed"
-    end
-
-    -- ===============================
-    --  WINDUI INPUT + BUTTON
-    -- ===============================
-
-    local suggestionText = ""
-
-    suggestionTab:Input({
-        Flag = "Suggestion_Text",
-        Title = "Send suggestions & bugs",
-        Desc = "1 hour cooldown • Logged to Discord",
-        Value = "",
-        InputIcon = "bird",
-        Type = "Textarea",
-        Placeholder = "Type your suggestion here...",
-        Callback = function(input)
-            suggestionText = input
-        end
-    })
-
-    suggestionTab:Button({
-        Title = "Send Suggestion",
-        Icon = "send",
-        Color = Color3.fromHex("#30ff6a"),
-        Callback = function()
-            local ok, msg = sendWebhookMessage(suggestionText)
-
-            if ok then
-                WindUI:Notify({
-                    Title = "Suggestion Sent ✅",
-                    Content = "Thanks! Your message was logged.",
-                    Icon = "check",
-                    Duration = 3
-                })
-                suggestionText = ""
-            else
-                WindUI:Notify({
-                    Title = "Error ❌",
-                    Content = msg,
-                    Icon = "x",
-                    Duration = 4
-                })
-            end
-        end
-    })
-end
 
 
 -- */ Using Nebula Icons /* --
