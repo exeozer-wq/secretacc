@@ -1,0 +1,443 @@
+-- Load Rayfield
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local localPlayer = Players.LocalPlayer
+local localUsername = localPlayer.Name
+
+-- State
+local hitboxEnabled = false
+local currentSize = 15
+local currentTransparency = 0.5
+local connections = {}
+local refreshLoopConn = nil
+
+-- Whitelist State
+local whitelistedPlayers = {} -- { [username] = true }
+
+-- Core logic
+local function applyTo(part, size, transparency)
+    part.Size = Vector3.new(size, size, size)
+    part.Transparency = transparency
+    part.CanCollide = false
+end
+
+local function clearConnections()
+    for _, c in ipairs(connections) do
+        c:Disconnect()
+    end
+    connections = {}
+end
+
+local function isWhitelisted(modelName)
+    return modelName == localUsername or whitelistedPlayers[modelName] == true
+end
+
+local function restoreModel(model)
+    if not model:IsA("Model") then return end
+    local head = model:FindFirstChild("Head")
+    local hrp = model:FindFirstChild("HumanoidRootPart")
+    if head then
+        head.Size = Vector3.new(2, 1, 1)
+        head.Transparency = 0
+        head.CanCollide = true
+    end
+    if hrp then
+        hrp.Size = Vector3.new(2, 2, 1)
+        hrp.Transparency = 1
+        hrp.CanCollide = true
+    end
+end
+
+local function processModel(model, size, transparency)
+    if not model:IsA("Model") then return end
+    if isWhitelisted(model.Name) then
+        restoreModel(model)
+        return
+    end
+    local head = model:FindFirstChild("Head")
+    local hrp = model:FindFirstChild("HumanoidRootPart")
+    if head then applyTo(head, size, transparency) end
+    if hrp then applyTo(hrp, size, transparency) end
+    local childConn = model.ChildAdded:Connect(function(child)
+        if not hitboxEnabled then return end
+        if isWhitelisted(model.Name) then
+            restoreModel(model)
+            return
+        end
+        if child.Name == "Head" or child.Name == "HumanoidRootPart" then
+            applyTo(child, currentSize, currentTransparency)
+        end
+    end)
+    table.insert(connections, childConn)
+end
+
+local function enableHitboxes(size, transparency)
+    local entitiesFolder = workspace:FindFirstChild("Entities")
+    if not entitiesFolder then
+        warn("Entities folder not found.")
+        return
+    end
+    clearConnections()
+    for _, model in ipairs(entitiesFolder:GetChildren()) do
+        processModel(model, size, transparency)
+    end
+    local folderConn = entitiesFolder.ChildAdded:Connect(function(child)
+        if hitboxEnabled then
+            processModel(child, currentSize, currentTransparency)
+        end
+    end)
+    table.insert(connections, folderConn)
+end
+
+local function disableHitboxes()
+    clearConnections()
+    local entitiesFolder = workspace:FindFirstChild("Entities")
+    if not entitiesFolder then return end
+    for _, model in ipairs(entitiesFolder:GetChildren()) do
+        restoreModel(model)
+    end
+end
+
+local function refreshHitboxes()
+    if hitboxEnabled then
+        enableHitboxes(currentSize, currentTransparency)
+    end
+end
+
+-- Build Rayfield Window
+local Window = Rayfield:CreateWindow({
+    Name = "CHITO",
+    LoadingTitle = "Chito HUB",
+    LoadingSubtitle = "by flaws",
+    Theme = "Default",
+    DisableRayfieldPrompts = false,
+    DisableBuildWarnings = false,
+    ConfigurationSaving = {
+        Enabled = false,
+    },
+    KeySystem = false,
+})
+
+local Tab = Window:CreateTab("Hitbox", 4483362458)
+
+-- Info section (top)
+Tab:CreateSection("Info")
+Tab:CreateLabel("Expands Head & HumanoidRootPart of all models in workspace.Entities. Your own character is excluded.")
+
+-- Controls section
+Tab:CreateSection("Controls")
+
+-- Toggle
+Tab:CreateToggle({
+    Name = "Expand Hitboxes",
+    CurrentValue = false,
+    Flag = "HitboxToggle",
+    Callback = function(value)
+        hitboxEnabled = value
+        if hitboxEnabled then
+            enableHitboxes(currentSize, currentTransparency)
+            refreshLoopConn = RunService.Heartbeat:Connect(function()
+                if not hitboxEnabled then return end
+                if os.clock() % 2 < 0.01 then
+                    refreshHitboxes()
+                end
+            end)
+        else
+            disableHitboxes()
+            if refreshLoopConn then
+                refreshLoopConn:Disconnect()
+                refreshLoopConn = nil
+            end
+        end
+    end,
+})
+
+-- Size Slider
+Tab:CreateSlider({
+    Name = "Hitbox Size",
+    Range = {1, 50},
+    Increment = 1,
+    Suffix = "studs",
+    CurrentValue = 15,
+    Flag = "HitboxSize",
+    Callback = function(value)
+        currentSize = value
+        refreshHitboxes()
+    end,
+})
+
+-- Transparency Slider
+Tab:CreateSlider({
+    Name = "Hitbox Transparency",
+    Range = {0, 10},
+    Increment = 1,
+    Suffix = "/10",
+    CurrentValue = 5,
+    Flag = "HitboxTransparency",
+    Callback = function(value)
+        currentTransparency = value / 10
+        refreshHitboxes()
+    end,
+})
+
+local flingEnabled = false
+local flingConn = nil
+
+Tab:CreateLabel("⚠ Fling & Godmode — cannot be disabled unless rejoin")
+
+Tab:CreateButton({
+    Name = "Activate Fling & Godmode",
+    Callback = function()
+        if flingEnabled then return end
+        flingEnabled = true
+
+        flingConn = RunService.Heartbeat:Connect(function()
+            local character = localPlayer.Character
+            local hrp = character and character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local velo = hrp.Velocity
+                hrp.Velocity = velo * 999999 + Vector3.new(999999, 999999, 999999)
+                RunService.RenderStepped:Wait()
+                hrp.Velocity = velo
+            end
+        end)
+
+        task.defer(function()
+            task.wait(4)
+            if flingEnabled then
+                local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.CFrame = CFrame.new(100, 131, 83)
+                end
+            end
+        end)
+    end,
+})
+
+-- ========================
+-- WHITELIST TAB
+-- ========================
+local WhitelistTab = Window:CreateTab("Whitelist", 4483362458)
+
+WhitelistTab:CreateSection("Whitelist Players")
+WhitelistTab:CreateLabel("Whitelisted players keep their normal hitbox. Updates in real time.")
+
+-- Helper: Get list of current player names in server (excluding self)
+local function getPlayerNames()
+    local names = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Name ~= localUsername then
+            table.insert(names, p.Name)
+        end
+    end
+    return names
+end
+
+-- Helper: Build display label for current whitelist
+local whitelistLabel = nil
+
+local function updateWhitelistLabel()
+    local names = {}
+    for name, _ in pairs(whitelistedPlayers) do
+        table.insert(names, name)
+    end
+    local display = #names > 0 and table.concat(names, ", ") or "None"
+    if whitelistLabel then
+        pcall(function()
+            whitelistLabel.Label.Text = "Whitelisted: " .. display
+        end)
+    end
+end
+-- Input: manually type a username to whitelist
+WhitelistTab:CreateInput({
+    Name = "Add Player to Whitelist",
+    PlaceholderText = "Enter exact username",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(text)
+        if text and text ~= "" then
+            local trimmed = text:match("^%s*(.-)%s*$")
+            if trimmed ~= "" then
+                whitelistedPlayers[trimmed] = true
+                updateWhitelistLabel()
+                refreshHitboxes()
+                Rayfield:Notify({
+                    Title = "Whitelist",
+                    Content = trimmed .. " has been whitelisted.",
+                    Duration = 3,
+                    Image = 4483362458,
+                })
+            end
+        end
+    end,
+})
+
+-- Input: remove a player from whitelist
+WhitelistTab:CreateInput({
+    Name = "Remove Player from Whitelist",
+    PlaceholderText = "Enter exact username",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(text)
+        if text and text ~= "" then
+            local trimmed = text:match("^%s*(.-)%s*$")
+            if trimmed ~= "" and whitelistedPlayers[trimmed] then
+                whitelistedPlayers[trimmed] = nil
+                updateWhitelistLabel()
+                refreshHitboxes()
+                Rayfield:Notify({
+                    Title = "Whitelist",
+                    Content = trimmed .. " has been removed from whitelist.",
+                    Duration = 3,
+                    Image = 4483362458,
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Whitelist",
+                    Content = trimmed .. " was not in the whitelist.",
+                    Duration = 3,
+                    Image = 4483362458,
+                })
+            end
+        end
+    end,
+})
+
+-- Dropdown: quick-select from players currently in the server to whitelist
+local function buildPlayerDropdown()
+    local playerNames = getPlayerNames()
+    if #playerNames == 0 then
+        playerNames = {"No other players found"}
+    end
+
+    WhitelistTab:CreateDropdown({
+        Name = "Quick-Add Player (Server List)",
+        Options = playerNames,
+        CurrentOption = {playerNames[1]},
+        Flag = "WhitelistDropdown",
+        MultipleOptions = true,
+        Callback = function(selected)
+			-- Normalize: ensure selected is always a table
+			if type(selected) == "string" then
+				selected = {selected}
+			end
+
+			local currentServerPlayers = {}
+			for _, name in ipairs(getPlayerNames()) do
+				currentServerPlayers[name] = true
+			end
+
+			for name, _ in pairs(currentServerPlayers) do
+				if not table.find(selected, name) then
+					whitelistedPlayers[name] = nil
+				end
+			end
+
+			for _, name in ipairs(selected) do
+				if name ~= "No other players found" then
+					whitelistedPlayers[name] = true
+				end
+			end
+
+			updateWhitelistLabel()
+			refreshHitboxes()
+		end,
+    })
+end
+
+buildPlayerDropdown()
+
+-- Section for whitelist status display
+WhitelistTab:CreateSection("Current Whitelist")
+whitelistLabel = WhitelistTab:CreateLabel("Whitelisted: None")
+
+-- Button: clear entire whitelist
+WhitelistTab:CreateButton({
+    Name = "Clear Entire Whitelist",
+    Callback = function()
+        whitelistedPlayers = {}
+        updateWhitelistLabel()
+        refreshHitboxes()
+        Rayfield:Notify({
+            Title = "Whitelist",
+            Content = "All players removed from whitelist.",
+            Duration = 3,
+            Image = 4483362458,
+        })
+    end,
+})
+
+-- Auto-restore hitbox for whitelisted players when they join mid-session
+Players.PlayerAdded:Connect(function(player)
+    task.wait(1) -- wait for their entity to load
+    if whitelistedPlayers[player.Name] then
+        local entitiesFolder = workspace:FindFirstChild("Entities")
+        if entitiesFolder then
+            local model = entitiesFolder:FindFirstChild(player.Name)
+            if model then
+                restoreModel(model)
+            end
+        end
+    end
+end)
+
+-- Auto-clean whitelist entry when a player leaves
+Players.PlayerRemoving:Connect(function(player)
+    -- Intentionally keep their whitelist entry in case they rejoin
+    -- If you want auto-removal, uncomment below:
+    -- whitelistedPlayers[player.Name] = nil
+    -- updateWhitelistLabel()
+end)
+
+-- Player tab
+local PlayerTab = Window:CreateTab("Player", 4483362458)
+
+local noclipEnabled = false
+local noclipConn
+
+PlayerTab:CreateToggle({
+    Name = "Noclip",
+    CurrentValue = false,
+    Flag = "Noclip",
+    Callback = function(value)
+        noclipEnabled = value
+        if noclipEnabled then
+            noclipConn = RunService.Stepped:Connect(function()
+                for _, part in ipairs(localPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end)
+        else
+            if noclipConn then noclipConn:Disconnect() end
+            for _, part in ipairs(localPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end,
+})
+
+PlayerTab:CreateToggle({
+    Name = "Infinite Jump",
+    CurrentValue = false,
+    Flag = "InfiniteJump",
+    Callback = function(value)
+        local UIS = game:GetService("UserInputService")
+        if value then
+            _G.InfJumpConn = UIS.JumpRequest:Connect(function()
+                localPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+            end)
+        else
+            if _G.InfJumpConn then _G.InfJumpConn:Disconnect() end
+        end
+    end,
+})
+
+Rayfield:Notify({
+    Title = "Chito HUB",
+    Content = "Script loaded successfully!",
+    Duration = 3,
+    Image = 4483362458,
+})
