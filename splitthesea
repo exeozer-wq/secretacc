@@ -1,0 +1,1372 @@
+--[[
+
+    WindUI Example (wip)
+    
+]]
+
+
+local WindUI
+
+do
+    local ok, result = pcall(function()
+        return require("./src/Init")
+    end)
+    
+    if ok then
+        WindUI = result
+    else 
+        WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+    end
+end
+
+--[[
+
+WindUI.Creator.AddIcons("solar", {
+    ["CheckSquareBold"] = "rbxassetid://132438947521974",
+    ["CursorSquareBold"] = "rbxassetid://120306472146156",
+    ["FileTextBold"] = "rbxassetid://89294979831077",
+    ["FolderWithFilesBold"] = "rbxassetid://74631950400584",
+    ["HamburgerMenuBold"] = "rbxassetid://134384554225463",
+    ["Home2Bold"] = "rbxassetid://92190299966310",
+    ["InfoSquareBold"] = "rbxassetid://119096461016615",
+    ["PasswordMinimalisticInputBold"] = "rbxassetid://109919668957167",
+    ["SolarSquareTransferHorizontalBold"] = "rbxassetid://125444491429160",
+})--]]
+
+-- Don't need this - because this popup appears after validation of key system
+function createPopup()
+    return WindUI:Popup({
+        Title = "Welcome to the WindUI!",
+        Icon = "bird",
+        Content = "Hello!",
+        Buttons = {
+            {
+                Title = "Hahaha",
+                Icon = "bird",
+                Variant = "Tertiary"
+            },
+            {
+                Title = "Hahaha",
+                Icon = "bird",
+                Variant = "Tertiary"
+            },
+            {
+                Title = "Hahaha",
+                Icon = "bird",
+                Variant = "Tertiary"
+            }
+        }
+    })
+end
+
+
+
+-- */  Window  /* --
+local Window = WindUI:CreateWindow({
+    Title = "CHITO hub  |  Split The Sea",
+    --Author = "by .ftgs • Footagesus",
+    Folder = "SplitTheSeaCHITO",
+    Icon = "solar:folder-2-bold-duotone",
+    --IconSize = 22*2,
+    NewElements = true,
+    --Size = UDim2.fromOffset(700,700),
+    
+    HideSearchBar = false,
+    
+    OpenButton = {
+        Title = "Open CHITO hub", -- can be changed
+        CornerRadius = UDim.new(1,0), -- fully rounded
+        StrokeThickness = 3, -- removing outline
+        Enabled = true, -- enable or disable openbutton
+        Draggable = true,
+        OnlyMobile = false,
+        
+        Color = ColorSequence.new( -- gradient
+            Color3.fromHex("#30FF6A"), 
+            Color3.fromHex("#e7ff2f")
+        )
+    },
+    Topbar = {
+        Height = 44,
+        ButtonsType = "Default", -- Default or Mac
+    },
+
+    --[[
+    KeySystem = {
+        Title = "Key System Example  |  WindUI Example",
+        Note = "Key System. Key: 1234",
+        KeyValidator = function(EnteredKey)
+            if EnteredKey == "1234" then
+                createPopup()
+                return true
+            end
+            return false
+            -- return EnteredKey == "1234" -- if key == "1234" then return true else return false end
+        end
+    }
+    ]]
+})
+
+--createPopup()
+
+--Window:SetUIScale(.8)
+
+-- */  Tags  /* --
+do
+    Window:Tag({
+        Title = "v1.0",
+        Icon = "bird",
+        Color = Color3.fromHex("#1c1c1c"),
+        Border = true,
+    })
+end
+
+
+local vu = game:GetService("VirtualUser")
+game.Players.LocalPlayer.Idled:Connect(function()
+    vu:CaptureController()
+    vu:ClickButton2(Vector2.new())
+end)
+
+
+-- */  Theme (soon)  /* --
+do
+    --[[WindUI:AddTheme({
+        Name = "Stylish",
+        
+        Accent = Color3.fromHex("#3b82f6"), 
+        Dialog = Color3.fromHex("#1a1a1a"), 
+        Outline = Color3.fromHex("#3b82f6"),
+        Text = Color3.fromHex("#f8fafc"),  
+        Placeholder = Color3.fromHex("#94a3b8"),
+        Button = Color3.fromHex("#334155"), 
+        Icon = Color3.fromHex("#60a5fa"), 
+        
+        WindowBackground = Color3.fromHex("#0f172a"),
+        
+        TopbarButtonIcon = Color3.fromHex("#60a5fa"),
+        TopbarTitle = Color3.fromHex("#f8fafc"),
+        TopbarAuthor = Color3.fromHex("#94a3b8"),
+        TopbarIcon = Color3.fromHex("#3b82f6"),
+        
+        TabBackground = Color3.fromHex("#1e293b"),    
+        TabTitle = Color3.fromHex("#f8fafc"),
+        TabIcon = Color3.fromHex("#60a5fa"),
+        
+        ElementBackground = Color3.fromHex("#1e293b"),
+        ElementTitle = Color3.fromHex("#f8fafc"),
+        ElementDesc = Color3.fromHex("#cbd5e1"),
+        ElementIcon = Color3.fromHex("#60a5fa"),
+    })--]]
+    
+    -- WindUI:SetTheme("Stylish")
+end
+
+
+-- */  Colors  /* --
+local Purple = Color3.fromHex("#7775F2")
+local Yellow = Color3.fromHex("#ECA201")
+local Green = Color3.fromHex("#10C550")
+local Grey = Color3.fromHex("#83889E")
+local Blue = Color3.fromHex("#257AF7")
+local Red = Color3.fromHex("#EF4F1D")
+
+
+-- */ Other Functions /* --
+local function parseJSON(luau_table, indent, level, visited)
+    indent = indent or 2
+    level = level or 0
+    visited = visited or {}
+    
+    local currentIndent = string.rep(" ", level * indent)
+    local nextIndent = string.rep(" ", (level + 1) * indent)
+    
+    if luau_table == nil then
+        return "null"
+    end
+    
+    local dataType = type(luau_table)
+    
+    if dataType == "table" then
+        if visited[luau_table] then
+            return "\"[Circular Reference]\""
+        end
+        
+        visited[luau_table] = true
+        
+        local isArray = true
+        local maxIndex = 0
+        
+        for k, _ in pairs(luau_table) do
+            if type(k) == "number" and k > maxIndex then
+                maxIndex = k
+            end
+            if type(k) ~= "number" or k <= 0 or math.floor(k) ~= k then
+                isArray = false
+                break
+            end
+        end
+        
+        local count = 0
+        for _ in pairs(luau_table) do
+            count = count + 1
+        end
+        if count ~= maxIndex and isArray then
+            isArray = false
+        end
+        
+        if count == 0 then
+            return "{}"
+        end
+        
+        if isArray then
+            if count == 0 then
+                return "[]"
+            end
+            
+            local result = "[\n"
+            
+            for i = 1, maxIndex do
+                result = result .. nextIndent .. parseJSON(luau_table[i], indent, level + 1, visited)
+                if i < maxIndex then
+                    result = result .. ","
+                end
+                result = result .. "\n"
+            end
+            
+            result = result .. currentIndent .. "]"
+            return result
+        else
+            local result = "{\n"
+            local first = true
+            
+            local keys = {}
+            for k in pairs(luau_table) do
+                table.insert(keys, k)
+            end
+            table.sort(keys, function(a, b)
+                if type(a) == type(b) then
+                    return tostring(a) < tostring(b)
+                else
+                    return type(a) < type(b)
+                end
+            end)
+            
+            for _, k in ipairs(keys) do
+                local v = luau_table[k]
+                if not first then
+                    result = result .. ",\n"
+                else
+                    first = false
+                end
+                
+                if type(k) == "string" then
+                    result = result .. nextIndent .. "\"" .. k .. "\": "
+                else
+                    result = result .. nextIndent .. "\"" .. tostring(k) .. "\": "
+                end
+                
+                result = result .. parseJSON(v, indent, level + 1, visited)
+            end
+            
+            result = result .. "\n" .. currentIndent .. "}"
+            return result
+        end
+    elseif dataType == "string" then
+        local escaped = luau_table:gsub("\\", "\\\\")
+        escaped = escaped:gsub("\"", "\\\"")
+        escaped = escaped:gsub("\n", "\\n")
+        escaped = escaped:gsub("\r", "\\r")
+        escaped = escaped:gsub("\t", "\\t")
+        
+        return "\"" .. escaped .. "\""
+    elseif dataType == "number" then
+        return tostring(luau_table)
+    elseif dataType == "boolean" then
+        return luau_table and "true" or "false"
+    elseif dataType == "function" then
+        return "\"function\""
+    else
+        return "\"" .. dataType .. "\""
+    end
+end
+
+local function tableToClipboard(luau_table, indent)
+    indent = indent or 4
+    local jsonString = parseJSON(luau_table, indent)
+    setclipboard(jsonString)
+    return jsonString
+end
+
+
+
+
+-- */  Elements Section  /* --
+local ElementsSection = Window:Section({
+    Title = "Elements",
+    Opened = true
+})
+local ConfigUsageSection = Window:Section({
+    Title = "Config Usage",
+    Opened = true
+})
+local OtherSection = Window:Section({
+    Title = "Other",
+    Opened = true
+})
+
+
+--------------------- FUNCTIONS ---------------------------
+-- Put this outside the toggle (only define once)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local SplitRequest = Remotes:WaitForChild("SplitRequest")   -- cache it once
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local GuiService = game:GetService("GuiService")
+
+local ActiveLoot = Workspace:WaitForChild("ActiveLoot")
+local AutoLootEnabled = false
+local AutoLootThread = nil
+local OldNamecall
+local AutoFarmEnabled = false
+local FarmThread = nil
+local MaxCycleTime = 30  -- default
+local PickedLoot = {}          -- permanent skip after attempt
+local RecentAttempts = {}      -- short cooldown per model to avoid rapid re-fires
+local ProcessedModels = {}
+
+-- Disable the pause overlay
+GuiService.CoreGuiNavigationEnabled = false
+
+-- Keep game active when unfocused
+local runService = game:GetService("RunService")
+runService:Set3dRenderingEnabled(true)
+
+-- Suppress the notification itself
+pcall(function()
+    game:GetService("GuiService"):SetGameplayPausedNotificationEnabled(false)
+end)
+
+local function enableHook()
+    if OldNamecall then return end   -- already hooked
+
+    OldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        if getnamecallmethod() ~= "FireServer" then
+            return OldNamecall(self, ...)
+        end
+
+        -- Most reliable ways to detect the correct remote (pick one or combine)
+        if self == SplitRequest or self.Name == "SplitRequest" then
+            local args = {...}
+            if type(args[1]) == "number" then
+                args[1] = 1
+            end
+            return OldNamecall(self, unpack(args))
+        end
+
+        return OldNamecall(self, ...)
+    end)
+end
+
+local function disableHook()
+    if not OldNamecall then return end
+    hookmetamethod(game, "__namecall", OldNamecall)
+    OldNamecall = nil
+end
+
+
+
+
+local function StartAutoLoot()
+    if AutoLootThread then return end
+    AutoLootEnabled = true
+    AutoLootThread = task.spawn(function()
+        while AutoLootEnabled do
+            local Character = LocalPlayer.Character
+            if not (Character and Character:FindFirstChild("HumanoidRootPart")) then
+                task.wait(0.5)
+                continue
+            end
+            local HRP = Character.HumanoidRootPart
+            local toFire = {}
+            for _, LootModel in ipairs(ActiveLoot:GetChildren()) do
+                if LootModel:GetAttribute("OwnerUserId") == LocalPlayer.UserId
+                and not ProcessedModels[LootModel] then
+                    for _, desc in ipairs(LootModel:GetDescendants()) do
+                        if desc:IsA("TouchInterest") or desc.ClassName == "TouchTransmitter" or desc.Name == "TouchInterest" then
+                            local touchPart = desc.Parent
+                            if touchPart and touchPart.Parent and touchPart:IsA("BasePart") then
+                                table.insert(toFire, {model = LootModel, part = touchPart})
+                            end
+                        end
+                    end
+                end
+            end
+            if #toFire > 0 then
+                print("[AutoLoot] Found " .. #toFire .. " touch parts — firing all now!")
+                for _, entry in ipairs(toFire) do
+                    local touchPart = entry.part
+                    local model = entry.model
+                    if touchPart and touchPart.Parent then
+                        pcall(function()
+                            firetouchinterest(HRP, touchPart, 0)
+                            firetouchinterest(HRP, touchPart, 1)
+                            firetouchinterest(touchPart, HRP, 0)  -- merged both pcalls, no waits
+                            firetouchinterest(touchPart, HRP, 1)
+                        end)
+                    end
+                    ProcessedModels[model] = true
+                end
+                task.wait(0.1)  -- reduced from 0.3
+            end
+            task.wait(0.15)  -- reduced from 0.4
+        end
+    end)
+end
+
+
+local function StopAutoLoot()
+	AutoLootEnabled = false
+	if AutoLootThread then
+		task.cancel(AutoLootThread)
+		AutoLootThread = nil
+	end
+end
+
+
+-- Helper: checks if player still has loot to pick
+local function hasOwnLoot()
+	for _, model in ipairs(ActiveLoot:GetChildren()) do
+		if model:GetAttribute("OwnerUserId") == LocalPlayer.UserId then
+			return true
+		end
+	end
+	return false
+end
+
+-- Helper: finds the correct Split part no matter which island (Basic, CyberTech, etc.)
+local function getPlayerSplit()
+	local plotName = LocalPlayer:GetAttribute("PlotName")
+	if not plotName then
+		warn("[AutoFarm] Missing PlotName attribute!")
+		return nil
+	end
+
+	for _, island in ipairs(workspace.Islands:GetChildren()) do
+		local plots = island:FindFirstChild("Plots")
+		if plots then
+			local plot = plots:FindFirstChild(plotName)
+			if plot then
+				local important = plot:FindFirstChild("Important")
+				if important then
+					local partt = important:FindFirstChild("Partt")
+					if partt then
+						local split = partt:FindFirstChild("Split")
+						if split and split:IsA("BasePart") then
+							return split
+						end
+					end
+				end
+			end
+		end
+	end
+
+	warn("[AutoFarm] Could not find Split for plot:", plotName)
+	return nil
+end
+
+local function StartAutoFarm()
+    if FarmThread then return end
+
+    AutoFarmEnabled = true
+    FarmThread = task.spawn(function()
+        while AutoFarmEnabled do
+            local splitPart = getPlayerSplit()
+            if not splitPart then task.wait(1) continue end
+
+            local Character = LocalPlayer.Character
+            local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
+            if not HRP then task.wait(0.5) continue end
+
+            -- === 1. Teleport to Split & fire request ===
+            HRP.CFrame = splitPart.CFrame + Vector3.new(0, 5, 0)
+            HRP.AssemblyLinearVelocity = Vector3.zero   -- kill momentum
+            HRP.AssemblyAngularVelocity = Vector3.zero
+            task.wait(0.8)
+
+            pcall(function()
+                game:GetService("ReplicatedStorage").Remotes.SplitRequest:FireServer(1, true)
+            end)
+            task.wait()
+
+            -- === 2. Begin looting ===
+            StartAutoLoot()
+
+            local cycleStart = os.clock()
+
+            -- === 3. Forward jumps with hover spam ===
+            local firstJump = true  -- track first jump
+            while AutoFarmEnabled and hasOwnLoot() and (os.clock() - cycleStart < MaxCycleTime) do
+                Character = LocalPlayer.Character
+                HRP = Character and Character:FindFirstChild("HumanoidRootPart")
+                if not HRP then task.wait(0.1) continue end
+
+                local forward = HRP.CFrame.LookVector * 200
+                local heightOffset = firstJump and 20 or 0  -- 20 on first, 0 after
+                local newPos  = HRP.Position + forward + Vector3.new(0, heightOffset, 0)
+                local newCF   = CFrame.new(newPos, newPos + HRP.CFrame.LookVector)
+                firstJump = false  -- disable after first jump
+
+                HRP.CFrame = newCF
+                HRP.AssemblyLinearVelocity  = Vector3.zero
+                HRP.AssemblyAngularVelocity = Vector3.zero
+
+                -- === Hover spam at this position ===
+                local hoverStart = os.clock()
+                while AutoFarmEnabled
+                    and hasOwnLoot()
+                    and (os.clock() - hoverStart  < 1.7)
+                    and (os.clock() - cycleStart  < MaxCycleTime) do
+
+                    Character = LocalPlayer.Character
+                    HRP = Character and Character:FindFirstChild("HumanoidRootPart")
+                    if HRP then
+                        HRP.CFrame = newCF
+                        HRP.AssemblyLinearVelocity  = Vector3.zero
+                        HRP.AssemblyAngularVelocity = Vector3.zero
+                    end
+                    task.wait(0)
+                end
+            end
+
+            -- === 4. Cleanup & return to Split ===
+            StopAutoLoot()
+
+            local Character = LocalPlayer.Character
+            local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
+            local hum   = Character and Character:FindFirstChildOfClass("Humanoid")
+
+            if not (HRP and splitPart) then
+                task.wait(0.5)
+                -- still try to sell even if we couldn't position correctly
+                pcall(function()
+                    game:GetService("ReplicatedStorage").Remotes.SellRequest:FireServer({Mode = "SellAll"})
+                end)
+                ProcessedModels = {}
+                task.wait(2.8)
+                return  -- or continue — depending on your loop logic
+            end
+
+            -- Nudge backwards to break any sticking / position lock
+            local backOffset = splitPart.CFrame.LookVector * -3  -- slightly bigger nudge usually better
+            HRP.CFrame = splitPart.CFrame + Vector3.new(0, 5, 0) + backOffset
+            HRP.AssemblyLinearVelocity = Vector3.zero
+            HRP.AssemblyAngularVelocity = Vector3.zero
+            task.wait(0.06)
+
+            -- Snap to split
+            local basePos = splitPart.CFrame + Vector3.new(0, 5, 0)
+            HRP.CFrame = basePos
+            HRP.AssemblyLinearVelocity = Vector3.zero
+            HRP.AssemblyAngularVelocity = Vector3.zero
+            task.wait(0.08)
+
+            -- Wiggle / server position validation spam
+            for i = 1, 12 do
+                HRP.CFrame = basePos + Vector3.new(0, 0,  1.8)   -- forward
+                task.wait(0.032)
+                HRP.CFrame = basePos + Vector3.new(0, 0, -1.8)   -- back
+                task.wait(0.032)
+            end
+
+            -- Optional: tiny up/down if game checks grounded state
+            -- for i = 1, 4 do
+            --     HRP.CFrame = basePos + Vector3.new(0, 0.6, 0)
+            --     task.wait(0.04)
+            --     HRP.CFrame = basePos
+            --     task.wait(0.04)
+            -- end
+
+            -- Final settle + small delay before sell
+            HRP.CFrame = basePos
+            HRP.AssemblyLinearVelocity = Vector3.zero
+            HRP.AssemblyAngularVelocity = Vector3.zero
+            task.wait(0.12)   -- ← increased slightly
+
+            -- Sell
+            task.wait(0.4)    -- most games need 0.3–0.7s after movement before sell registers
+            pcall(function()
+                game:GetService("ReplicatedStorage").Remotes.SellRequest:FireServer({Mode = "SellAll"})
+            end)
+
+            ProcessedModels = {}
+            task.wait(2.8)
+        end
+    end)
+end
+
+local function StopAutoFarm()
+	AutoFarmEnabled = false
+	if FarmThread then
+		task.cancel(FarmThread)
+		FarmThread = nil
+	end
+	StopAutoLoot() -- clean up loot thread too
+end
+
+
+
+--- Secondary
+
+--WalkSpeed & JumpPower section
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+
+local speedActive = false
+local jumpActive = false
+local currentWalkSpeed = 16
+local currentJumpPower = 50
+
+local speedConnection = nil
+
+local DEFAULT_WALKSPEED = 16
+local DEFAULT_JUMPPOWER = 50
+
+local function applySpeedAndJump()
+    local char = player.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    humanoid.UseJumpPower = true
+
+    if speedActive then
+        humanoid.WalkSpeed = currentWalkSpeed
+    else
+        humanoid.WalkSpeed = DEFAULT_WALKSPEED
+    end
+
+    if jumpActive then
+        humanoid.JumpPower = currentJumpPower
+    else
+        humanoid.JumpPower = DEFAULT_JUMPPOWER
+        -- Optional: if you want exact default height behavior when off, set UseJumpPower = false here
+        humanoid.UseJumpPower = false
+    end
+end
+
+local function startLoop()
+    if speedConnection then return end
+
+    speedConnection = RunService.Stepped:Connect(function()  -- Use Stepped instead of Heartbeat (runs earlier in frame)
+        applySpeedAndJump()
+    end)
+
+    -- Handle respawn
+    player.CharacterAdded:Connect(function(char)
+        local humanoid = char:WaitForChild("Humanoid")
+        -- Small delay to let game set defaults first
+        task.wait()
+        applySpeedAndJump()
+    end)
+end
+
+local function stopLoop()
+    if speedConnection then
+        speedConnection:Disconnect()
+        speedConnection = nil
+    end
+end
+
+-- Slider callbacks
+function setWalkSpeed(value)
+    currentWalkSpeed = value
+    if speedActive then
+        applySpeedAndJump()  -- Instant apply
+    end
+end
+
+function setJumpPower(value)
+    currentJumpPower = value
+    if jumpActive then
+        applySpeedAndJump()
+    end
+end
+
+-- Toggle callbacks
+function setSpeedEnabled(state)
+    speedActive = state
+    if state or jumpActive then
+        startLoop()
+    else
+        stopLoop()
+    end
+    applySpeedAndJump()  -- Apply reset immediately when turning off
+end
+
+function setJumpEnabled(state)
+    jumpActive = state
+    if state or speedActive then
+        startLoop()
+    else
+        stopLoop()
+    end
+    applySpeedAndJump()
+end
+
+
+-- ########## INFINITE JUMP
+
+local infJumpActive = false
+local infJumpConnection = nil
+
+local UserInputService = game:GetService("UserInputService")  -- Make sure this is declared at the top!
+
+local function enableInfJump()
+    if infJumpActive then return end
+    infJumpActive = true
+
+    infJumpConnection = UserInputService.JumpRequest:Connect(function()
+        if not infJumpActive then return end
+        
+        local char = player.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end)
+end
+
+local function disableInfJump()
+    infJumpActive = false
+    if infJumpConnection then
+        infJumpConnection:Disconnect()
+        infJumpConnection = nil
+    end
+end
+
+-- Optional: Re-enable on respawn if it was active before death
+player.CharacterAdded:Connect(function()
+    if infJumpActive then
+        enableInfJump()  -- Reconnect the listener
+    end
+end)
+
+
+-- ## Noclip & Float (No Conflict - Shared Name)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+-- Shared float name (random like IY, used by both noclip and float)
+local floatName = "FloatPlatform_" .. math.random(1, 1000000)
+
+-- Noclip
+local noclipActive = false
+local noclipConnection = nil
+
+-- In enableNoclip() - keep skipping floatName (already good)
+local function enableNoclip()
+    if noclipActive then return end
+    noclipActive = true
+
+    noclipConnection = RunService.Stepped:Connect(function()
+        if not noclipActive then return end
+        local char = player.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name ~= floatName then  -- Skip float
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+
+-- In disableNoclip() - skip restoring float
+local function disableNoclip()
+    if not noclipActive then return end
+    noclipActive = false
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+
+    local char = player.Character
+    if char then
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= floatName then  -- Skip float
+                part.CanCollide = true
+            end
+        end
+    end
+    
+    if floatActive then
+        disableFloat()  -- Clean up old platform
+        task.spawn(enableFloat)  -- Recreate fresh
+    end
+end
+
+-- Float (Exact IY recreation)
+local floatActive = false
+local floatPart = nil
+local floatConnections = {}
+local floatValue = -3.1
+
+local function enableFloat()
+    if floatActive then return end
+    floatActive = true
+
+    local char = player.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+    local hrp = char.HumanoidRootPart
+
+    floatPart = Instance.new("Part")
+    floatPart.Name = floatName  -- Uses the same shared name
+    floatPart.Parent = char
+    floatPart.Transparency = 1
+    floatPart.Size = Vector3.new(2, 0.2, 1.5)
+    floatPart.Anchored = true
+    floatPart.CFrame = hrp.CFrame * CFrame.new(0, floatValue, 0)
+
+    -- E/Q controls (hold = continuous movement)
+    floatConnections.qDown = UserInputService.InputBegan:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.Q then
+            floatValue = floatValue - 0.5
+        end
+    end)
+    floatConnections.qUp = UserInputService.InputEnded:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.Q then
+            floatValue = floatValue + 0.5
+        end
+    end)
+    floatConnections.eDown = UserInputService.InputBegan:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.E then
+            floatValue = floatValue + 1.5
+        end
+    end)
+    floatConnections.eUp = UserInputService.InputEnded:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.E then
+            floatValue = floatValue - 1.5
+        end
+    end)
+
+    -- Follow player
+    floatConnections.heartbeat = RunService.Heartbeat:Connect(function()
+        if not floatActive or not floatPart or not hrp.Parent then
+            disableFloat()
+            return
+        end
+        floatPart.CFrame = hrp.CFrame * CFrame.new(0, floatValue, 0)
+    end)
+
+    -- Cleanup on death
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        floatConnections.died = humanoid.Died:Connect(disableFloat)
+    end
+end
+
+local function disableFloat()
+    if not floatActive then return end
+    floatActive = false
+
+    if floatPart and floatPart.Parent then
+        floatPart:Destroy()
+        floatPart = nil
+    end
+
+    for _, conn in pairs(floatConnections) do
+        if conn then conn:Disconnect() end
+    end
+    floatConnections = {}
+end
+
+
+--[[  idk. VideoFrame is not working with custom video on exploits
+      I don't know why
+    
+-- */  Video Tab  /* --
+do
+    local VideoTab = ElementsSection:Tab({
+        Title = "Video",
+        Icon = "video",
+    })
+    
+    VideoTab:Video({
+        Title = "My Video Hahahah", -- optional
+        Author = ".ftgs", -- optional
+        Video = "https://cdn.discordapp.com/attachments/1337368451865645096/1402703845657673878/VID_20250616_180732_158.webm?ex=68fc5f01&is=68fb0d81&hm=f4f0a88dbace2d3cef92535b2e57effae6d4c4fc444338163faafa7f3fdac529&"
+    })
+end
+
+--]]
+
+
+-- */  Config Usage  /* --
+
+if not game:GetService("RunService"):IsStudio() then
+    do -- config elements
+        local ConfigElementsTab = ConfigUsageSection:Tab({
+            Title = "Config Elements",
+            Icon = "solar:file-text-bold",
+            IconColor = Blue,
+            IconShape = nil,
+            Border = true,
+        })
+        
+        -- All elements are taken from the official documentation: https://footagesus.github.io/WindUI-Docs/docs
+        
+        -- Saving elements to the config using `Flag`
+        
+        
+        ConfigElementsTab:Space()
+        
+        ConfigElementsTab:Keybind({
+            Flag = "KeybindTest",
+            Title = "Keybind",
+            Desc = "Keybind to open ui",
+            Value = "K",
+            Callback = function(v)
+                Window:SetToggleKey(Enum.KeyCode[v])
+            end
+        })
+        
+        ConfigElementsTab:Space()
+    end
+        
+    
+    do -- config panel
+        local ConfigTab = ConfigUsageSection:Tab({
+            Title = "Config Usage",
+            Icon = "solar:folder-with-files-bold",
+            IconColor = Purple,
+            IconShape = nil,
+            Border = true,
+        })
+
+        local ConfigManager = Window.ConfigManager
+        local ConfigName = "default"
+
+        local ConfigNameInput = ConfigTab:Input({
+            Title = "Config Name",
+            Icon = "file-cog",
+            Callback = function(value)
+                ConfigName = value
+            end
+        })
+
+        ConfigTab:Space()
+        
+        -- local AutoLoadToggle = ConfigTab:Toggle({
+        --     Title = "Enable Auto Load to Selected Config",
+        --     Value = false,
+        --     Callback = function(v)
+        --         Window.CurrentConfig:SetAutoLoad(v)
+        --     end
+        -- })
+
+        -- ConfigTab:Space()
+
+        local AllConfigs = ConfigManager:AllConfigs()
+        local DefaultValue = table.find(AllConfigs, ConfigName) and ConfigName or nil
+
+        local AllConfigsDropdown = ConfigTab:Dropdown({
+            Title = "All Configs",
+            Desc = "Select existing configs",
+            Values = AllConfigs,
+            Value = DefaultValue,
+            Callback = function(value)
+                ConfigName = value
+                ConfigNameInput:Set(value)
+                
+                AutoLoadToggle:Set(ConfigManager:GetConfig(ConfigName).AutoLoad or false)
+            end
+        })
+
+        ConfigTab:Space()
+
+        ConfigTab:Button({
+            Title = "Save Config",
+            Icon = "",
+            Justify = "Center",
+            Callback = function()
+                Window.CurrentConfig = ConfigManager:Config(ConfigName)
+                if Window.CurrentConfig:Save() then
+                    WindUI:Notify({
+                        Title = "Config Saved",
+                        Content = "Config '" .. ConfigName .. "' saved",
+                        Icon = "check",
+                    })
+                end
+                
+                AllConfigsDropdown:Refresh(ConfigManager:AllConfigs())
+            end
+        })
+
+        ConfigTab:Space()
+
+        ConfigTab:Button({
+            Title = "Load Config",
+            Icon = "",
+            Justify = "Center",
+            Callback = function()
+                Window.CurrentConfig = ConfigManager:CreateConfig(ConfigName)
+                if Window.CurrentConfig:Load() then
+                    WindUI:Notify({
+                        Title = "Config Loaded",
+                        Content = "Config '" .. ConfigName .. "' loaded",
+                        Icon = "refresh-cw",
+                    })
+                end
+            end
+        })
+
+        ConfigTab:Space()
+
+        ConfigTab:Button({
+            Title = "Print AutoLoad Configs",
+            Icon = "",
+            Justify = "Center",
+            Callback = function()
+                print(HttpService:JSONDecode(ConfigManager:GetAutoLoadConfigs()))
+            end
+        })
+    end
+end
+
+
+-- */ Main Tab /* --
+do
+    local MainTab = ElementsSection:Tab({
+        Title = "Main",
+        Icon = "solar:home-2-bold",
+        IconColor = Green,
+        Border = true,
+    })
+    
+    local MainSection1 = MainTab:Section({
+        Title = "Main",
+        Opened = true
+    })
+    
+    MainTab:Toggle({
+        Title = "Perfect Split",
+        Desc = "might not show it, but if it's toggled on, every swing will be perfected",
+        Icon = "zap",
+        Default = false,
+        Callback = function(state)
+            if state then
+                enableHook()
+            else
+                disableHook()
+            end
+        end,
+    })
+    
+    MainTab:Space()
+    
+    -- ────────────────────────────────────────────────
+    -- Auto Loot Toggle – store it in a variable!
+    local autoLootToggle = MainTab:Toggle({
+        Title = "Auto Loot Pickup",
+        Icon = "package",
+        Default = false,
+        Callback = function(state)
+            if state then
+                StartAutoLoot()
+            else
+                StopAutoLoot()
+            end
+        end
+    })
+    
+    
+    MainTab:Space()
+    
+    MainTab:Button({
+        Title = "Sell all",
+        Color = Color3.fromHex("#ffe762"),
+        Callback = function(state)
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("SellRequest"):FireServer({Mode = "SellAll"})
+        end
+    })
+
+    MainTab:Space()
+
+        local MainSection2 = MainTab:Section({
+        Title = "Autofarm",
+        Opened = true
+    })
+
+    MainTab:Toggle({
+        Title = "Auto Farm",
+        Desc = "Automatically does all above functions.",
+        Icon = "sword",
+        Default = false,
+        Callback = function(state)
+            if state then
+                StartAutoFarm()
+            else
+                StopAutoFarm()
+            end
+        end
+    })
+
+    MainTab:Slider({
+        Title = "Max Cycle Time",
+        Desc = "Force return after this many seconds",
+        IsTooltip = true,              -- shows tooltip with value while dragging (optional)
+        Step = 5,                      -- increment/step size
+        Value = {
+            Min = 5,
+            Max = 90,
+            Default = 30,
+        },
+        Callback = function(value)
+            print("Slider fired:", value)  -- add this
+            MaxCycleTime = value
+            WindUI:Notify({
+                Title = "Auto Farm",
+                Content = "Max cycle time set to " .. value .. " seconds",
+                Icon = "timer",
+                Duration = 2.5
+            })
+        end,
+    })
+end
+
+-- */ Player Tab /* --
+
+do
+    local PlayerTab = ElementsSection:Tab({
+        Title = "Player",
+        Icon = "solar:user-bold",
+        IconColor = Blue,
+        Border = true,
+    })
+
+    local PlayerSection1 = PlayerTab:Section({
+        Title = "Character modifications"
+    })
+
+    PlayerTab:Toggle({
+        Title = "Noclip",
+        Callback = function(state)
+            if state then
+                enableNoclip()
+            else
+                disableNoclip()
+            end
+        end
+    })
+
+    PlayerTab:Space()
+
+    PlayerTab:Toggle({
+        Title = "Float",
+        Desc = "Jumping while floating up (E) or down (Q) might break float.",
+        Callback = function(state)
+            if state then
+                enableFloat()
+            else
+                disableFloat()
+            end
+        end
+    })
+
+
+    PlayerTab:Space()
+
+    PlayerTab:Toggle({
+        Title = "Infinite Jump",
+        Callback = function(state)
+            if state then
+                enableInfJump()
+            else
+                disableInfJump()
+            end
+        end
+    })
+
+    PlayerTab:Space()
+
+    -- WalkSpeed Toggle & Slider
+    local WalkSpeedToggle = PlayerTab:Toggle({
+        Title = "WalkSpeed",
+        Desc = "Enable custom WalkSpeed",
+        Callback = function(state)
+            setSpeedEnabled(state)
+        end
+    })
+
+    local WalkSpeedSlider = PlayerTab:Slider({
+        Title = "WalkSpeed Value",
+        Step = 1,
+        Value = {
+            Min = 16,
+            Max = 100,
+            Default = 16,
+        },
+        Callback = function(value)
+            setWalkSpeed(value)
+        end
+    })
+
+    PlayerTab:Space()
+
+    -- JumpPower Toggle & Slider
+    local JumpPowerToggle = PlayerTab:Toggle({
+        Title = "JumpPower",
+        Desc = "Enable custom JumpPower",
+        Callback = function(state)
+            setJumpEnabled(state)
+        end
+    })
+
+    local JumpPowerSlider = PlayerTab:Slider({
+        Title = "JumpPower Value",
+        Step = 1,
+        Value = {
+            Min = 50,
+            Max = 200,
+            Default = 50,
+        },
+        Callback = function(value)
+            setJumpPower(value)
+        end
+    })
+
+    PlayerTab:Space()
+
+end
+
+-- /* Misc Tab */ -- 
+
+do
+    local MiscTab = ElementsSection:Tab({
+        Title = "Misc",
+        Icon = "solar:folder-with-files-bold",
+        IconColor = Red,
+        Border = true,
+    })
+
+    local MiscSection = MiscTab:Section({
+        Title = "Misc"
+    })
+
+    MiscTab:Button({
+        Title = "Infinite Yield",
+        Color = Color3.fromHex("#30ff6a"),
+        Icon = "solar:flash-bold",
+        Callback = function()
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/DarkNetworks/Infinite-Yield/main/latest.lua'))()
+        end
+    })
+end
+
+-- */  Other  /* --
+do
+    local InviteCode = "jTYJtXMZgc"
+    local DiscordAPI = "https://discord.com/api/v10/invites/" .. InviteCode .. "?with_counts=true&with_expiration=true"
+    local success, Response = pcall(function()
+        return WindUI.cloneref(game:GetService("HttpService")):JSONDecode(WindUI.Creator.Request({
+            Url = DiscordAPI,
+            Method = "GET",
+            Headers = {
+                ["User-Agent"] = "WindUI/Example",
+                ["Accept"] = "application/json"
+            }
+        }).Body)
+    end)
+
+    local DiscordTab = OtherSection:Tab({
+        Title = "Discord",
+        Border = true,
+    })
+
+    if success and Response and Response.guild then
+        DiscordTab:Section({
+            Title = "Join our Discord server!",
+            TextSize = 20,
+        })
+        DiscordTab:Paragraph({
+            Title = tostring(Response.guild.name),
+            Desc = tostring(Response.guild.description or "Join in-case of needing support."),
+            Image = "https://cdn.discordapp.com/icons/" .. Response.guild.id .. "/" .. Response.guild.icon .. ".png?size=1024",
+            -- Optional: change banner if you have one, or remove Thumbnail line
+            Thumbnail = "https://cdn.discordapp.com/banners/" .. Response.guild.id .. "/" .. (Response.guild.banner or "") .. ".png?size=512",
+            ImageSize = 48,
+            Buttons = {
+                {
+                    Title = "Copy Invite Link",
+                    Icon = "link",
+                    Callback = function()
+                        setclipboard("https://discord.gg/" .. InviteCode)
+                    end
+                }
+            }
+        })
+    else
+        -- Fallback if API fails or invalid code
+        DiscordTab:Section({ Title = "Join our Discord!", TextSize = 20 })
+        DiscordTab:Paragraph({
+            Title = "CHITO Hub Community",
+            Desc = "Join for support",
+            Buttons = {
+                {
+                    Title = "Copy Invite",
+                    Icon = "link",
+                    Callback = function()
+                        setclipboard("https://discord.gg/" .. InviteCode)
+                    end
+                }
+            }
+        })
+    end
+end
+
+
+-- */ Using Nebula Icons /* --
+--[[
+do
+    local NebulaIcons = loadstring(game:HttpGetAsync("https://raw.nebulasoftworks.xyz/nebula-icon-library-loader"))()
+    
+    -- Adding icons (e.g. Fluency)
+    WindUI.Creator.AddIcons("fluency",    NebulaIcons.Fluency)
+    --               ^ Icon name          ^ Table of Icons
+    
+    -- You can also add nebula icons
+    WindUI.Creator.AddIcons("nebula",    NebulaIcons.nebulaIcons)
+    
+    -- Usage ↑ ↓
+    
+    local TestSection = Window:Section({
+        Title = "Custom icons usage test (nebula)",
+        Icon = "nebula:nebula",
+    })
+end
+]]
+--[[
+
+local EndButStartTab = Window:Tab({
+    Title = "EndButStartTab",
+    -- u can use `Before` or `After`
+    Before = AboutTab, -- put this tab Before AboutTab
+    
+})
+--]]
