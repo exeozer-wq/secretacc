@@ -1066,6 +1066,7 @@ do
     
     MainTab:Toggle({
         Title = "Perfect Split",
+        Desc = "might not show it, but if it's toggled on, every swing will be perfected.",
         Icon = "zap",
         Default = false,
         Callback = function(state)
