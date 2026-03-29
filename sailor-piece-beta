@@ -1,0 +1,346 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "CHITO",
+    LoadingTitle = "CHITO",
+    LoadingSubtitle = "by flaws",
+    Theme = "Ocean",
+    DisableRayfieldPrompts = false,
+    DisableBuildWarnings = false,
+})
+
+local Tab = Window:CreateTab("Main", nil)
+
+local groups = {
+    ["AcademyTeachers"] = {"AcademyTeacher1","AcademyTeacher2","AcademyTeacher3","AcademyTeacher4","AcademyTeacher5"},
+    ["ArenaFighters"] = {"ArenaFighter1","ArenaFighter2","ArenaFighter3","ArenaFighter4","ArenaFighter5"},
+    ["Curses"] = {"Curse1","Curse2","Curse3","Curse4","Curse5"},
+    ["DesertBandits"] = {"DesertBandit1","DesertBandit2","DesertBandit3","DesertBandit4","DesertBandit5"},
+    ["FrostRogues"] = {"FrostRogue1","FrostRogue2","FrostRogue3","FrostRogue4","FrostRogue5"},
+    ["Hollows"] = {"Hollow1","Hollow2","Hollow3","Hollow4","Hollow5"},
+    ["Monkeys"] = {"Monkey1","Monkey2","Monkey3","Monkey4","Monkey5"},
+    ["Ninjas"] = {"Ninja1","Ninja2","Ninja3","Ninja4","Ninja5"},
+    ["Quincys"] = {"Quincy1","Quincy2","Quincy3","Quincy4","Quincy5"},
+    ["Slimes"] = {"Slime1","Slime2","Slime3","Slime4","Slime5"},
+    ["Sorcerers"] = {"Sorcerer1","Sorcerer2","Sorcerer3","Sorcerer4","Sorcerer5"},
+    ["StrongSorcerers"] = {"StrongSorcerer1","StrongSorcerer2","StrongSorcerer3","StrongSorcerer4","StrongSorcerer5"},
+    ["Swordsmen"] = {"Swordsman1","Swordsman2","Swordsman3","Swordsman4","Swordsman5"},
+    ["Thiefs"] = {"Thief1","Thief2","Thief3","Thief4","Thief5"},
+    ["AizenBoss"] = {"AizenBoss"},
+    ["DesertBoss"] = {"DesertBoss"},
+    ["GojoBoss"] = {"GojoBoss"},
+    ["MonkeyBoss"] = {"MonkeyBoss"},
+    ["PandaMiniBoss"] = {"PandaMiniBoss"},
+    ["SnowBoss"] = {"SnowBoss"},
+    ["StrongestShinobiBoss"] = {"StrongestShinobiBoss"},
+    ["SukunaBoss"] = {"SukunaBoss"},
+    ["ThiefBoss"] = {"ThiefBoss"},
+    ["YamatoBoss"] = {"YamatoBoss"},
+    ["YujiBoss"] = {"YujiBoss"},
+    ["TrainingDummy"] = {"TrainingDummy"},
+}
+
+local dropdownOptions = {}
+for name, _ in pairs(groups) do
+    table.insert(dropdownOptions, name)
+end
+table.sort(dropdownOptions)
+
+local selectedGroups = {}
+local attackEnabled = false
+local autoQuestEnabled = false
+local hasActiveQuest = false
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local RequestHit = game:GetService("ReplicatedStorage")
+    :WaitForChild("CombatSystem")
+    :WaitForChild("Remotes")
+    :WaitForChild("RequestHit")
+
+local RemoteEvents = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents")
+local QuestAccept = RemoteEvents:WaitForChild("QuestAccept")
+
+RemoteEvents:WaitForChild("QuestUIUpdate").OnClientEvent:Connect(function()
+    hasActiveQuest = true
+end)
+
+RemoteEvents:WaitForChild("QuestComplete").OnClientEvent:Connect(function()
+    hasActiveQuest = false
+end)
+
+local function getNPCRoot(npc)
+    return npc:FindFirstChild("HumanoidRootPart")
+        or npc:FindFirstChild("PrimaryPart")
+        or npc:FindFirstChildWhichIsA("BasePart")
+end
+
+local function isNPCAlive(npc)
+    local humanoid = npc:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
+
+local function getTargetNPCs()
+    local targets = {}
+    for _, groupName in ipairs(selectedGroups) do
+        local members = groups[groupName]
+        if members then
+            for _, npcName in ipairs(members) do
+                local npc = workspace.NPCs:FindFirstChild(npcName)
+                if npc and isNPCAlive(npc) then
+                    table.insert(targets, npc)
+                end
+            end
+        end
+    end
+    return targets
+end
+
+local function glideTowards(targetPos)
+    local character = LocalPlayer.Character
+    if not character then return end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    while attackEnabled do
+        local dist = (root.Position - targetPos).Magnitude
+        if dist <= 200 then break end
+        local direction = (targetPos - root.Position).Unit
+        local step = root.Position + direction * 3
+        root.CFrame = CFrame.new(step, step + direction)
+        task.wait(0.03)
+    end
+end
+
+local function getQuestNPC(level)
+    if level <= 99 then return "QuestNPC1"
+    elseif level <= 249 then return "QuestNPC2"
+    elseif level <= 499 then return "QuestNPC3"
+    elseif level <= 749 then return "QuestNPC4"
+    elseif level <= 999 then return "QuestNPC5"
+    elseif level <= 1499 then return "QuestNPC6"
+    elseif level <= 1999 then return "QuestNPC7"
+    elseif level <= 2999 then return "QuestNPC8"
+    elseif level <= 3999 then return "QuestNPC9"
+    elseif level <= 5000 then return "QuestNPC10"
+    elseif level <= 6250 then return "QuestNPC11"
+    elseif level <= 7000 then return "QuestNPC12"
+    elseif level <= 7999 then return "QuestNPC13"
+    elseif level <= 9000 then return "QuestNPC14"
+    elseif level <= 10000 then return "QuestNPC15"
+    elseif level <= 10750 then return "QuestNPC16"
+    elseif level <= 11500 then return "QuestNPC17"
+    elseif level <= 12000 then return "QuestNPC18"
+    else return "QuestNPC19"
+    end
+end
+
+-- Main Tab Elements
+
+
+local dropdown = Tab:CreateDropdown({
+    Name = "Select Mobs",
+    Options = dropdownOptions,
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "MobDropdown",
+    Callback = function(selected)
+        selectedGroups = selected
+    end,
+})
+
+Tab:CreateToggle({
+    Name = "Auto Attack",
+    CurrentValue = false,
+    Flag = "AutoAttack",
+    Callback = function(value)
+        attackEnabled = value
+        if attackEnabled then
+            task.spawn(function()
+                while attackEnabled do
+                    local targets = getTargetNPCs()
+                    if #targets == 0 then
+                        task.wait(0.5)
+                        continue
+                    end
+
+                    for _, npc in ipairs(targets) do
+						if not attackEnabled then break end
+						if not isNPCAlive(npc) then continue end
+
+						local npcRoot = getNPCRoot(npc)
+						if not npcRoot then continue end
+
+						local character = LocalPlayer.Character
+						if not character then continue end
+						local playerRoot = character:FindFirstChild("HumanoidRootPart")
+						if not playerRoot then continue end
+
+						local dist = (playerRoot.Position - npcRoot.Position).Magnitude
+						if dist > 200 then
+							glideTowards(npcRoot.Position)
+						end
+
+						-- Keep attacking this NPC until it dies
+						while attackEnabled and isNPCAlive(npc) do
+							npcRoot = getNPCRoot(npc)
+							if not npcRoot then break end
+
+							local pos = npcRoot.Position
+							RequestHit:FireServer(Vector3.new(pos.X, pos.Y, pos.Z))
+							task.wait(0.35)
+						end
+					end
+                end
+            end)
+        end
+    end,
+})
+
+local Paragraph = Tab:CreateParagraph({Title = "Warning", Content = "won't work if  you're further than 200 studs away from target; auto attack automatically teleports you towards target in this case."})
+
+Tab:CreateToggle({
+    Name = "Auto Quest",
+    CurrentValue = false,
+    Flag = "AutoQuest",
+    Callback = function(value)
+        autoQuestEnabled = value
+        if autoQuestEnabled then
+            task.spawn(function()
+                while autoQuestEnabled do
+                    if not hasActiveQuest then
+                        local level = LocalPlayer.Data and LocalPlayer.Data.Level and LocalPlayer.Data.Level.Value or 0
+                        local npc = getQuestNPC(level)
+                        QuestAccept:FireServer(npc)
+                    end
+                    task.wait(1)
+                end
+            end)
+        end
+    end,
+})
+
+local Label = Tab:CreateLabel("Automatically scans & attacks if target is within range", 4483362458, Color3.fromRGB(255, 255, 255), false) -- Title, Icon, Color, IgnoreTheme
+
+
+local mobAuraEnabled = false
+local playerAuraEnabled = false
+
+Tab:CreateToggle({
+    Name = "Mob Aura",
+    CurrentValue = false,
+    Flag = "MobAura",
+    Callback = function(value)
+        mobAuraEnabled = value
+        if mobAuraEnabled then
+            task.spawn(function()
+                while mobAuraEnabled do
+                    local character = LocalPlayer.Character
+                    local playerRoot = character and character:FindFirstChild("HumanoidRootPart")
+                    if playerRoot then
+                        for _, npc in ipairs(workspace.NPCs:GetChildren()) do
+                            if not mobAuraEnabled then break end
+                            local humanoid = npc:FindFirstChildOfClass("Humanoid")
+                            if not humanoid or humanoid.Health <= 0 then continue end
+                            local npcRoot = getNPCRoot(npc)
+                            if not npcRoot then continue end
+                            local dist = (playerRoot.Position - npcRoot.Position).Magnitude
+                            if dist <= 200 then
+                                local pos = npcRoot.Position
+                                RequestHit:FireServer(Vector3.new(pos.X, pos.Y, pos.Z))
+                            end
+                        end
+                    end
+                    task.wait(0.35)
+                end
+            end)
+        end
+    end,
+})
+
+Tab:CreateToggle({
+    Name = "Player Aura",
+    CurrentValue = false,
+    Flag = "PlayerAura",
+    Callback = function(value)
+        playerAuraEnabled = value
+        if playerAuraEnabled then
+            task.spawn(function()
+                while playerAuraEnabled do
+                    local character = LocalPlayer.Character
+                    local playerRoot = character and character:FindFirstChild("HumanoidRootPart")
+                    if playerRoot then
+                        for _, player in ipairs(Players:GetPlayers()) do
+                            if not playerAuraEnabled then break end
+                            if player == LocalPlayer then continue end
+                            local targetChar = player.Character
+                            if not targetChar then continue end
+                            local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+                            if not targetRoot then continue end
+                            local humanoid = targetChar:FindFirstChildOfClass("Humanoid")
+                            if not humanoid or humanoid.Health <= 0 then continue end
+                            local dist = (playerRoot.Position - targetRoot.Position).Magnitude
+                            if dist <= 200 then
+                                local pos = targetRoot.Position
+                                RequestHit:FireServer(Vector3.new(pos.X, pos.Y, pos.Z))
+                            end
+                        end
+                    end
+                    task.wait(0.35)
+                end
+            end)
+        end
+    end,
+})
+
+-- Stats Tab
+local StatsTab = Window:CreateTab("Stats", nil)
+
+local selectedStat = "Melee"
+local statAmount = 1
+local autoStatEnabled = false
+
+local AllocateStat = RemoteEvents:WaitForChild("AllocateStat")
+
+StatsTab:CreateDropdown({
+    Name = "Stat",
+    Options = {"Melee", "Defense", "Sword", "Power"},
+    CurrentOption = {"Melee"},
+    MultipleOptions = false,
+    Flag = "StatDropdown",
+    Callback = function(selected)
+        selectedStat = selected[1] or "Melee"
+    end,
+})
+
+StatsTab:CreateInput({
+    Name = "Amount",
+    CurrentValue = "1",
+    PlaceholderText = "Enter amount",
+    RemoveTextAfterFocusLost = false,
+    Flag = "StatAmount",
+    Callback = function(value)
+        local num = tonumber(value)
+        if num and num > 0 then
+            statAmount = math.floor(num)
+        end
+    end,
+})
+
+StatsTab:CreateToggle({
+    Name = "Auto Stat",
+    CurrentValue = false,
+    Flag = "AutoStat",
+    Callback = function(value)
+        autoStatEnabled = value
+        if autoStatEnabled then
+            task.spawn(function()
+                while autoStatEnabled do
+                    AllocateStat:FireServer(selectedStat, statAmount)
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end,
+})
