@@ -157,6 +157,8 @@ local selectedGroups   = {}
 local attackEnabled    = false
 local autoQuestEnabled = false
 local hasActiveQuest   = false
+local whitelistedPlayers = {}   -- ADD THIS
+local whitelistedMobs    = {}   -- ADD THIS
 
 LocalPlayer.CharacterAdded:Connect(function()
     -- Briefly pause loops to let the new character load
@@ -816,10 +818,6 @@ end
 -- Whitelist Tab
 -- ─────────────────────────────────────────────
 local WhitelistTab = Window:CreateTab("Whitelist", nil)
-
--- ── State ──
-local whitelistedPlayers = {}
-local whitelistedMobs    = {}
 
 -- ── Player Whitelist Section ──
 WhitelistTab:CreateSection("Player Whitelist")
