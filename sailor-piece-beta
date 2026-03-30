@@ -599,6 +599,7 @@ Tab:CreateToggle({
                         for _, npc in ipairs(children) do
                             if not mobAuraEnabled then break end
                             if not isNPCValid(npc) or not isNPCAlive(npc) then continue end
+							if table.find(whitelistedMobs, npc.Name) then continue end
                             local pos = getNPCPosition(npc)
                             if pos and (root.Position - pos).Magnitude <= 200 then
                                 pcall(function()
@@ -633,6 +634,7 @@ Tab:CreateToggle({
                     for _, player in ipairs(Players:GetPlayers()) do
                         if not playerAuraEnabled then break end
                         if player == LocalPlayer then continue end
+						if table.find(whitelistedPlayers, player.Name) then continue end
                         local ok, targetRoot = pcall(function()
                             local char = player.Character
                             return char and char:FindFirstChild("HumanoidRootPart")
@@ -775,4 +777,282 @@ local RedeemButton = MiscTab:CreateButton({
             Image = nil
         })
     end
+})
+
+-- ─────────────────────────────────────────────
+-- Teleport Tab
+-- ─────────────────────────────────────────────
+local TeleportTab = Window:CreateTab("Teleport", nil)
+
+TeleportTab:CreateSection("Islands")
+
+local islandList = {
+    "Starter", "Jungle", "Desert", "Snow", "Sailor",
+    "Shibuya", "Hollow", "Boss", "Shinjuku", "Slime",
+    "Academy", "Judgement", "Soul", "Ninja", "Lawless", "Tower"
+}
+
+for _, islandName in ipairs(islandList) do
+    TeleportTab:CreateButton({
+        Name = "→ " .. islandName,
+        Callback = function()
+            local portalName = islandPortalNames[islandName]
+            if portalName then
+                pcall(function() TeleportToPortal:FireServer(portalName) end)
+                task.wait(2)
+                fireCheckpoint(islandName)
+                Rayfield:Notify({
+                    Title = "Teleport",
+                    Content = "Teleported to " .. islandName,
+                    Duration = 3,
+                    Image = nil,
+                })
+            end
+        end,
+    })
+end
+
+-- ─────────────────────────────────────────────
+-- Whitelist Tab
+-- ─────────────────────────────────────────────
+local WhitelistTab = Window:CreateTab("Whitelist", nil)
+
+-- ── State ──
+local whitelistedPlayers = {}
+local whitelistedMobs    = {}
+
+-- ── Player Whitelist Section ──
+WhitelistTab:CreateSection("Player Whitelist")
+
+-- Live player dropdown (updated on join/leave)
+local currentPlayerOptions = {}
+
+local function getOnlinePlayerNames()
+    local names = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            table.insert(names, p.Name)
+        end
+    end
+    table.sort(names)
+    return names
+end
+
+-- We'll store a reference to rebuild when roster changes
+local playerDropdownRef = nil
+
+local function rebuildPlayerDropdown()
+    currentPlayerOptions = getOnlinePlayerNames()
+    -- Rayfield doesn't expose a live-refresh API on dropdowns,
+    -- so we recreate the element each time via a wrapper section.
+    -- The simplest pattern is to keep a flag + re-notify the user.
+    if playerDropdownRef then
+        -- Update options if Rayfield supports it on your version
+        pcall(function()
+            playerDropdownRef:Refresh(currentPlayerOptions, true)
+        end)
+    end
+end
+
+local selectedWhitelistPlayer = nil
+
+playerDropdownRef = WhitelistTab:CreateDropdown({
+    Name = "Online Players",
+    Options = getOnlinePlayerNames(),
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "WhitelistPlayerDropdown",
+    Callback = function(selected)
+        selectedWhitelistPlayer = (selected and selected[1]) or nil
+    end,
+})
+
+-- Auto-refresh dropdown when players join/leave
+Players.PlayerAdded:Connect(function()
+    task.wait(1) -- brief wait so .Name is accessible
+    rebuildPlayerDropdown()
+end)
+
+Players.PlayerRemoving:Connect(function()
+    task.wait(0.1)
+    rebuildPlayerDropdown()
+end)
+
+-- Add via dropdown
+WhitelistTab:CreateButton({
+    Name = "Add Selected Player",
+    Callback = function()
+        if selectedWhitelistPlayer and selectedWhitelistPlayer ~= "" then
+            if not table.find(whitelistedPlayers, selectedWhitelistPlayer) then
+                table.insert(whitelistedPlayers, selectedWhitelistPlayer)
+                Rayfield:Notify({
+                    Title = "Whitelist",
+                    Content = selectedWhitelistPlayer .. " added to whitelist.",
+                    Duration = 3,
+                    Image = nil,
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Whitelist",
+                    Content = selectedWhitelistPlayer .. " is already whitelisted.",
+                    Duration = 3,
+                    Image = nil,
+                })
+            end
+        end
+    end,
+})
+
+-- Manual input (case sensitive) in case dropdown fails
+local manualPlayerInput = ""
+
+WhitelistTab:CreateInput({
+    Name = "Manual Username (case sensitive)",
+    CurrentValue = "",
+    PlaceholderText = "Enter exact username",
+    RemoveTextAfterFocusLost = false,
+    Flag = "ManualPlayerInput",
+    Callback = function(value)
+        manualPlayerInput = value
+    end,
+})
+
+WhitelistTab:CreateButton({
+    Name = "Add Manual Username",
+    Callback = function()
+        if manualPlayerInput and manualPlayerInput ~= "" then
+            if not table.find(whitelistedPlayers, manualPlayerInput) then
+                table.insert(whitelistedPlayers, manualPlayerInput)
+                Rayfield:Notify({
+                    Title = "Whitelist",
+                    Content = manualPlayerInput .. " added to whitelist.",
+                    Duration = 3,
+                    Image = nil,
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Whitelist",
+                    Content = manualPlayerInput .. " already whitelisted.",
+                    Duration = 3,
+                    Image = nil,
+                })
+            end
+        end
+    end,
+})
+
+WhitelistTab:CreateButton({
+    Name = "Remove Selected / Manual Player",
+    Callback = function()
+        local name = (selectedWhitelistPlayer and selectedWhitelistPlayer ~= "")
+                     and selectedWhitelistPlayer
+                     or manualPlayerInput
+        local idx = name and table.find(whitelistedPlayers, name)
+        if idx then
+            table.remove(whitelistedPlayers, idx)
+            Rayfield:Notify({
+                Title = "Whitelist",
+                Content = name .. " removed from whitelist.",
+                Duration = 3,
+                Image = nil,
+            })
+        else
+            Rayfield:Notify({
+                Title = "Whitelist",
+                Content = "Player not found in whitelist.",
+                Duration = 3,
+                Image = nil,
+            })
+        end
+    end,
+})
+
+WhitelistTab:CreateButton({
+    Name = "Show Whitelisted Players",
+    Callback = function()
+        local display = #whitelistedPlayers > 0
+            and table.concat(whitelistedPlayers, ", ")
+            or  "None"
+        Rayfield:Notify({
+            Title = "Whitelisted Players",
+            Content = display,
+            Duration = 8,
+            Image = nil,
+        })
+    end,
+})
+
+-- ── Mob Whitelist Section ──
+WhitelistTab:CreateSection("Mob Whitelist")
+
+local mobDropdownOptions = {}
+for name in pairs(groups) do table.insert(mobDropdownOptions, name) end
+table.sort(mobDropdownOptions)
+
+local selectedWhitelistMob = nil
+
+WhitelistTab:CreateDropdown({
+    Name = "Select Mob Group",
+    Options = mobDropdownOptions,
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "WhitelistMobDropdown",
+    Callback = function(selected)
+        selectedWhitelistMob = (selected and selected[1]) or nil
+    end,
+})
+
+WhitelistTab:CreateButton({
+    Name = "Add Mob to Whitelist",
+    Callback = function()
+        if selectedWhitelistMob and selectedWhitelistMob ~= "" then
+            if not table.find(whitelistedMobs, selectedWhitelistMob) then
+                table.insert(whitelistedMobs, selectedWhitelistMob)
+                Rayfield:Notify({
+                    Title = "Mob Whitelist",
+                    Content = selectedWhitelistMob .. " added.",
+                    Duration = 3,
+                    Image = nil,
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Mob Whitelist",
+                    Content = selectedWhitelistMob .. " already in whitelist.",
+                    Duration = 3,
+                    Image = nil,
+                })
+            end
+        end
+    end,
+})
+
+WhitelistTab:CreateButton({
+    Name = "Remove Mob from Whitelist",
+    Callback = function()
+        local idx = selectedWhitelistMob and table.find(whitelistedMobs, selectedWhitelistMob)
+        if idx then
+            table.remove(whitelistedMobs, idx)
+            Rayfield:Notify({
+                Title = "Mob Whitelist",
+                Content = selectedWhitelistMob .. " removed.",
+                Duration = 3,
+                Image = nil,
+            })
+        end
+    end,
+})
+
+WhitelistTab:CreateButton({
+    Name = "Show Whitelisted Mobs",
+    Callback = function()
+        local display = #whitelistedMobs > 0
+            and table.concat(whitelistedMobs, ", ")
+            or  "None"
+        Rayfield:Notify({
+            Title = "Whitelisted Mobs",
+            Content = display,
+            Duration = 8,
+            Image = nil,
+        })
+    end,
 })
