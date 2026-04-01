@@ -1,14 +1,6 @@
--- Map bounds for valid items (necessary to bypass anti-cheat)
-local minVec = Vector3.new(
-    math.min(5354, 6212),
-    math.min(435, 1093),
-    math.min(296, -3465)
-)
-local maxVec = Vector3.new(
-    math.max(5354, 6212),
-    math.max(435, 1093),
-    math.max(296, -3465)
-)
+-- Map bounds for valid items (NEW map - necessary to bypass anti-cheat)
+local minVec = Vector3.new(-991, 343, 1714)
+local maxVec = Vector3.new(223, 746, 3074)
 
 local function isWithinMap(pos)
     return pos.X >= minVec.X and pos.X <= maxVec.X
@@ -131,7 +123,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v2.0.2",
+        Title = "v2.0.3",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -352,12 +344,15 @@ end
 -- */  Elements Section  /* --
 local ElementsSection = Window:Section({
     Title = "Elements",
+	Opened = true,
 })
 local ConfigUsageSection = Window:Section({
     Title = "Config Usage",
+	Opened = true,
 })
 local OtherSection = Window:Section({
     Title = "Other",
+	Opened = true,
 })
 
 
@@ -466,33 +461,6 @@ local function runDamage(playerName)
 end
 
 
--- Heal function
-local function runHeal(playerName)
-    local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
-    local Heal5 = ReplicatedStorage:WaitForChild("Heal5")
-    local Players = cloneref(game:GetService("Players"))
-    local player = Players:FindFirstChild(playerName)
-    if player and player.Character then
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
-        if humanoid and rootPart then
-            local args = {
-                humanoid,
-                rootPart.CFrame,
-                39.6,
-                0,
-                nil,
-                "rbxassetid://245751634",
-                0.075,
-                Color3.fromRGB(255, 255, 0),
-                "rbxassetid://2914074987",
-                0,
-                0
-            }
-            Heal5:FireServer(unpack(args))
-        end
-    end
-end
 
 -- Knock function
 local function runKnock(playerName)
@@ -507,6 +475,51 @@ local function runKnock(playerName)
             KnockEvent:FireServer(unpack(args))
         end
     end
+end
+
+-- Cream: Invisibility
+local function runBecomeInvisible()
+    local args = { "toggleVis", false }
+    pcall(function()
+        game:GetService("ReplicatedStorage")
+            :WaitForChild("BismalqStuff")
+            :WaitForChild("Remotes")
+            :WaitForChild("Cream"):FireServer(unpack(args))
+    end)
+end
+
+-- === Improved Touch Fling (Velocity Style) ===
+local flingEnabled = false
+local flingThread = nil
+
+local function startFling()
+    if flingThread then return end
+
+    flingThread = task.spawn(function()
+        local RunService = game:GetService("RunService")
+        local Players = game:GetService("Players")
+        local lp = Players.LocalPlayer
+        local movel = 0.1
+
+        while flingEnabled do
+            local c = lp.Character
+            local hrp = c and c:FindFirstChild("HumanoidRootPart")
+
+            if hrp and hrp.Parent then
+                local vel = hrp.Velocity
+
+                -- The magic velocity pulse (same as the pastebin)
+                hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
+                RunService.RenderStepped:Wait()
+                hrp.Velocity = vel
+                RunService.Stepped:Wait()
+                hrp.Velocity = vel + Vector3.new(0, movel, 0)
+                movel = -movel
+            end
+
+            RunService.Heartbeat:Wait()  -- Keep the loop synced
+        end
+    end)
 end
 
 
@@ -543,23 +556,9 @@ local itemNames = {
     "Banknote",  -- ← keep this if you still want banknotes highlighted
 }
 
-local function isStatuePart(obj)
-    local parent = obj.Parent
-    while parent and parent ~= workspace do
-        local map = workspace:FindFirstChild("Map")
-        if map and parent == map:FindFirstChild("Frog Statue") then
-            return true
-        end
-        parent = parent.Parent
-    end
-    return false
-end
-
-
 local function isTargetItem(obj)
-    return table.find(itemNames, obj.Name) ~= nil and not isStatuePart(obj)
+    return table.find(itemNames, obj.Name) ~= nil
 end
-
 
 local function addESP(item)
     if espObjects[item] then return end
@@ -664,7 +663,7 @@ workspace.DescendantAdded:Connect(function(desc)
     end
 
  -- SPECIAL FROG HANDLER (ONLY when itemGrabEnabled = true)
-    if desc.Name == "Frog" and itemGrabEnabled and not isStatuePart(desc) then
+    if desc.Name == "Frog" and itemGrabEnabled then
         task.delay(0.25, function()
             if not desc or not desc.Parent or not desc:IsDescendantOf(workspace) then return end
 
@@ -945,23 +944,9 @@ do
         end
     })
 
-    MainTab:Button({
-        Title = "Heal",
-        Icon = "solar:cursor-square-bold",
-        Color = Green,
-        Callback = function()
-            if selectedPlayer then
-                runHeal(selectedPlayer)
-            else
-                WindUI:Notify({Title = "No Player Selected", Duration = 2})
-            end
-        end
-    })
             
     local loopDamage = false
-    local loopHeal = false
     local loopDamageThread = nil
-    local loopHealThread = nil
 
 
 
@@ -988,28 +973,6 @@ do
         end
     })
 
-    MainTab:Toggle({
-        Title = "Loop Heal",
-        Flag = "Loop_Heal_Toggle",
-        Value = false,
-        Callback = function(v)
-            loopHeal = v
-            if loopHeal then
-                if not loopHealThread then
-                    loopHealThread = coroutine.create(function()
-                        while loopHeal do
-                            runHeal(selectedPlayer)
-                            wait(0.1)
-                        end
-                        loopHealThread = nil
-                    end)
-                    coroutine.resume(loopHealThread)
-                end
-            else
-                loopHealThread = nil
-            end
-        end
-    })
 
     -- Kill Aura Toggle and Slider (UI only, no logic)
     MainTab:Toggle({
@@ -2437,30 +2400,216 @@ do
     local godModeDelay = 0.05
 
     MiscTab:Toggle({
-        Title = "Semi-Godmode/Infinite Deflect",
-        Flag = "GodMode_Toggle",
-        Desc = "Need to have Gold Experience equipped.",
-        Color = Color3.fromHex("#30ff6a"),
-        Value = false,
-        Callback = function(v)
-            godModeEnabled = v
-            if godModeEnabled then
-                godModeThread = task.spawn(function()
-                    while godModeEnabled do
-                        local args = {true}
-                        pcall(function()
-                            game:GetService("ReplicatedStorage"):WaitForChild("Deflect"):FireServer(unpack(args))
-                        end)
-                        task.wait(godModeDelay)
-                    end
-                end)
-            else
-                godModeThread = nil
-            end
-        end
-    })
-end
+		Title = "Semi-Godmode/Infinite Deflect",
+		Flag = "GodMode_Toggle",
+		Desc = "GER = GE Deflect | Cream/D4C = LoveTrain Deflect",
+		Color = Color3.fromHex("#30ff6a"),
+		Value = false,
+		Callback = function(v)
+			godModeEnabled = v
+			if godModeEnabled then
+				godModeThread = task.spawn(function()
+					local RS = game:GetService("ReplicatedStorage")
+					local lp = game.Players.LocalPlayer
 
+					-- Love Train stands
+					local loveTrainIds = {36, 70}  -- D4C, Cream
+
+					while godModeEnabled do
+						local standId = (lp.Data and lp.Data:FindFirstChild("Stand") and lp.Data.Stand.Value) or 1
+
+						pcall(function()
+							if table.find(loveTrainIds, standId) then
+								-- D4C or Cream: use Love Train deflect
+								local args = { true }
+								RS:WaitForChild("D4CLoveTrainDeflect"):FireServer(unpack(args))
+							else
+								-- Default (GER, etc): use normal Deflect
+								local args = { true }
+								RS:WaitForChild("Deflect"):FireServer(unpack(args))
+							end
+						end)
+
+						task.wait(godModeDelay)
+					end
+				end)
+			else
+				godModeThread = nil
+			end
+		end
+	})
+
+	MiscTab:Space()
+
+	MiscTab:Button({
+		Title = "Crash Players/Server",
+		Desc = "needs The World equipped",
+		Callback = function()
+			for i = 1, 100000 do
+				game:GetService("ReplicatedStorage"):WaitForChild("TWSlamEffect"):FireServer()
+			end
+		end,
+	})
+
+	MiscTab:Space()
+
+	local CreamSection = MiscTab:Section({
+		Title = "Cream",
+		Opened = true,
+	})
+
+	-- Become Invisible (your existing one is fine)
+	CreamSection:Button({
+		Title = "Become Invisible",
+		Desc = "Use Z ability at least once, then click this.",
+		Icon = "solar:eye-closed-bold",
+		Color = Color3.fromHex("#83889E"),
+		Callback = function()
+			runBecomeInvisible()
+			WindUI:Notify({ Title = "Cream", Content = "Invisibility toggled!", Duration = 2 })
+		end,
+	})
+
+
+	CreamSection:Toggle({
+		Title = "Touch Fling",
+		Flag = "Cream_TouchFling",
+		Value = false,
+		Callback = function(v)
+			flingEnabled = v
+
+			if flingEnabled then
+				WindUI:Notify({
+					Title = "Touch Fling",
+					Content = "Enabled - go touch people!",
+					Duration = 3
+				})
+				startFling()
+			else
+				if flingThread then
+					task.cancel(flingThread)
+					flingThread = nil
+				end
+				WindUI:Notify({
+					Title = "Touch Fling",
+					Content = "Disabled",
+					Duration = 2
+				})
+			end
+		end,
+	})
+
+	MiscTab:Space()
+
+	-- King Crimson Section
+	local KingCrimsonSection = MiscTab:Section({
+		Title = "King Crimson",
+		Opened = true,
+	})
+
+	local selectedColor = Color3.new(1, 0, 0)
+	local teleportAmount = 1000
+	local isSpamming = false
+	local spamThread = nil
+
+	KingCrimsonSection:Colorpicker({
+		Title = "Teleport Color",
+		Default = selectedColor,
+		Transparency = 0,
+		Callback = function(newColor)
+			selectedColor = newColor
+		end,
+	})
+
+	KingCrimsonSection:Input({
+		Title = "Teleport Amount",
+		Desc = "How many times to fire",
+		Value = tostring(teleportAmount),
+		Placeholder = "e.g. 500 or 2000",
+		Callback = function(input)
+			local num = tonumber(input)
+			if num and num > 0 and num <= 10000 then
+				teleportAmount = math.floor(num)
+			else
+				WindUI:Notify({
+					Title = "Invalid Amount",
+					Content = "Please enter a number between 1 and 10000.",
+					Duration = 3,
+				})
+			end
+		end,
+	})
+
+	KingCrimsonSection:Button({
+		Title = "Start King Crimson Spam",
+		Icon = "solar:play-bold",
+		Color = Color3.fromHex("#EF4F1D"),
+		Callback = function()
+			if isSpamming then
+				WindUI:Notify({
+					Title = "King Crimson",
+					Content = "Already running! Stop it first.",
+					Duration = 2,
+				})
+				return
+			end
+
+			isSpamming = true
+			WindUI:Notify({
+				Title = "King Crimson Activated",
+				Content = "Spamming " .. teleportAmount .. " teleports...",
+				Duration = 4,
+			})
+
+			spamThread = task.spawn(function()
+				local RS = game:GetService("ReplicatedStorage")
+				local remote = RS:WaitForChild("DarkLinkStuff"):WaitForChild("UpdatedTETeleport")
+
+				for i = 1, teleportAmount do
+					if not isSpamming then break end
+					pcall(function()
+						remote:FireServer(selectedColor, 255555555)
+					end)
+					task.wait(0.1)
+				end
+
+				isSpamming = false
+				spamThread = nil
+				WindUI:Notify({
+					Title = "King Crimson Finished",
+					Content = "Completed " .. teleportAmount .. " teleports.",
+					Duration = 3,
+				})
+			end)
+		end,
+	})
+
+	KingCrimsonSection:Button({
+		Title = "Stop King Crimson Spam",
+		Icon = "solar:pause-bold",
+		Color = Color3.fromHex("#83889E"),
+		Callback = function()
+			if isSpamming then
+				isSpamming = false
+				if spamThread then
+					task.cancel(spamThread)
+					spamThread = nil
+				end
+				WindUI:Notify({
+					Title = "King Crimson Stopped",
+					Content = "Spam loop cancelled.",
+					Duration = 2,
+				})
+			else
+				WindUI:Notify({
+					Title = "King Crimson",
+					Content = "No spam is currently running.",
+					Duration = 2,
+				})
+			end
+		end,
+	})
+end
 
 --[[  idk. VideoFrame is not working with custom video on exploits
       I don't know why
@@ -2677,6 +2826,7 @@ do
         })
     end
 end
+
 
 -- */ Using Nebula Icons /* --
 --[[
