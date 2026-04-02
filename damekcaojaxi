@@ -1,6 +1,6 @@
 -- Map bounds for valid items (NEW map - necessary to bypass anti-cheat)
-local minVec = Vector3.new(-991, 343, 1714)
-local maxVec = Vector3.new(223, 746, 3074)
+local minVec = Vector3.new(-2597, 78, -1562)
+local maxVec = Vector3.new(-1028, 540, 603)
 
 local function isWithinMap(pos)
     return pos.X >= minVec.X and pos.X <= maxVec.X
