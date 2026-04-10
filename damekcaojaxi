@@ -1,8 +1,6 @@
 -- Map bounds for valid items (NEW map - necessary to bypass anti-cheat)
-local minVec = Vector3.new(-2597, 78, -1562)
-local maxVec = Vector3.new(-1028, 540, 603)
-
-workspace.Map.NEWMAP.Park:GetChildren()[27]:Destroy()
+local minVec = Vector3.new(5145, 578, -2464)  --(-2597, 78, -1562)
+local maxVec = Vector3.new(6487, 944, 7) --(-1028, 540, 603)
 
 local function isWithinMap(pos)
     return pos.X >= minVec.X and pos.X <= maxVec.X
@@ -2032,7 +2030,7 @@ do
         [19]    = "Hierophant Green",
         [2] = "Star Platinum: Classic",
         [10004] = "Retro The World",
-        [1234]  = "Retro Star Platinum Soda",
+		[1234]  = "Retro Star Platinum Soda",
         [199]   = "Retro Hierophant Green",
         [700]   = "Cream (Famicom Colors)",
         [6767]  = "Retro Silver Chariot",
