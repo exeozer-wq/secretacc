@@ -52,6 +52,15 @@ local function detectMap()
             minVec = map.min
             maxVec = map.max
             print(string.format("[MapDetect] Map detected! Min: %s | Max: %s", tostring(minVec), tostring(maxVec)))
+
+            -- Map 2 specific logic
+            if minVec == Vector3.new(-2597, 78, -1562) then
+                pcall(function()
+                    workspace.Map.NEWMAP.Park:GetChildren()[27]:Destroy()
+                end)
+                print("Removed that one ugly ass tree as well..")
+            end
+
             return
         end
     end
