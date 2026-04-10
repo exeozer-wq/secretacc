@@ -1,12 +1,76 @@
--- Map bounds for valid items (NEW map - necessary to bypass anti-cheat)
-local minVec = Vector3.new(5145, 578, -2464)  --(-2597, 78, -1562)
-local maxVec = Vector3.new(6487, 944, 7) --(-1028, 540, 603)
+-- Map bounds (auto-detected on spawn)
+local minVec = Vector3.new(0, 0, 0)
+local maxVec = Vector3.new(0, 0, 0)
+
+-- Map definitions
+local MAP_BOUNDS = {
+    {
+        min = Vector3.new(5145, 578, -2464),
+        max = Vector3.new(6487, 944, 7),
+    },
+    {
+        min = Vector3.new(-2597, 78, -1562),
+        max = Vector3.new(-1028, 540, 603),
+    },
+}
+
+local function isWithinBounds(pos, mn, mx)
+    return pos.X >= mn.X and pos.X <= mx.X
+        and pos.Y >= mn.Y and pos.Y <= mx.Y
+        and pos.Z >= mn.Z and pos.Z <= mx.Z
+end
 
 local function isWithinMap(pos)
-    return pos.X >= minVec.X and pos.X <= maxVec.X
-        and pos.Y >= minVec.Y and pos.Y <= maxVec.Y
-        and pos.Z >= minVec.Z and pos.Z <= maxVec.Z
+    return isWithinBounds(pos, minVec, maxVec)
 end
+
+local function detectMap()
+    local Players = game:GetService("Players")
+    local lp = Players.LocalPlayer
+    local username = lp.Name
+
+    -- Try to find character in workspace.Entities
+    local entities = workspace:FindFirstChild("Entities")
+    local charModel = entities and entities:FindFirstChild(username)
+    local hrp = charModel and charModel:FindFirstChild("HumanoidRootPart")
+
+    -- Fallback: use lp.Character
+    if not hrp then
+        local char = lp.Character or lp.CharacterAdded:Wait()
+        hrp = char:WaitForChild("HumanoidRootPart", 8)
+    end
+
+    if not hrp then
+        warn("[MapDetect] Could not find HumanoidRootPart!")
+        return
+    end
+
+    local pos = hrp.Position
+
+    for _, map in ipairs(MAP_BOUNDS) do
+        if isWithinBounds(pos, map.min, map.max) then
+            minVec = map.min
+            maxVec = map.max
+            print(string.format("[MapDetect] Map detected! Min: %s | Max: %s", tostring(minVec), tostring(maxVec)))
+            return
+        end
+    end
+
+    warn(string.format("[MapDetect] Position %s didn't match any known map! ESP/bounds checks may not work.", tostring(pos)))
+end
+
+-- Run detection on load
+local lp = game:GetService("Players").LocalPlayer
+if lp.Character then
+    task.spawn(detectMap)
+else
+    lp.CharacterAdded:Connect(function()
+        task.wait(1.5) -- let entities folder populate
+        task.spawn(detectMap)
+    end)
+end
+
+
 --[[
 
     WindUI Example (wip)
