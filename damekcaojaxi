@@ -1871,6 +1871,7 @@ do
                         local VirtualUser = game:GetService("VirtualUser")
 
                         while autoTrowelEnabled do
+                            print("[Trowel] Loop tick")
                             local character = player.Character
                             if not character then task.wait(1) continue end
 
@@ -1880,77 +1881,74 @@ do
                                 task.wait(1.5) continue
                             end
 
-                            -- Check & buy/equip trowel
+                            -- Step 1: ensure we have a trowel
                             local trowel = player.Backpack:FindFirstChild("Trowel") or character:FindFirstChild("Trowel")
                             if not trowel then
-                                pcall(function()
-                                    PurchaseRemote:FireServer("Trowel")
-                                end)
-                                task.wait(1.4)  -- wait for purchase
-
-                                -- Immediately try to equip after buy
-                                trowel = player.Backpack:WaitForChild("Trowel", 3)  -- wait up to 3s
-                                if trowel and trowel.Parent == player.Backpack then
-                                    humanoid:EquipTool(trowel)
-                                    task.wait(0.6)
-                                end
-                                continue
+                                pcall(function() PurchaseRemote:FireServer("Trowel") end)
+                                task.wait(2)
+                                trowel = player.Backpack:FindFirstChild("Trowel") or character:FindFirstChild("Trowel")
+                                if not trowel then task.wait(1) continue end  -- still no trowel, retry
                             end
 
-                            -- Get valid sand spots (only visible = Transparency < 1)
+                            -- Step 2: equip if in backpack
+                            if trowel.Parent == player.Backpack then
+                                humanoid:EquipTool(trowel)
+                                task.wait(0.6)
+                                trowel = player.Backpack:FindFirstChild("Trowel") or character:FindFirstChild("Trowel")
+                            end
+
+                            -- Step 3: collect sand
                             local sandSpots = {}
                             local interactable = workspace:FindFirstChild("Interactable")
                             if interactable then
                                 for _, obj in ipairs(interactable:GetChildren()) do
-                                    if obj.Name == "Sand" and obj:IsA("BasePart") 
-                                    and obj.Transparency < 1  -- skip invisible/not spawned
-                                    and obj.Position.Magnitude < 10000 then  -- optional anti-weird-pos
+                                    if obj.Name == "Sand" and obj:IsA("BasePart") and obj.Transparency < 1 then
                                         table.insert(sandSpots, obj)
                                     end
                                 end
                             end
+                            print("[Trowel] Sand spots:", #sandSpots, "| Trowel parent:", trowel and tostring(trowel.Parent) or "NIL")
 
-                            if #sandSpots == 0 then
-                                task.wait(4)
-                                continue
-                            end
+                            if #sandSpots == 0 then task.wait(4) continue end
 
-                            -- Dig cycle
+                            -- Step 4: dig cycle
                             for _, sand in ipairs(sandSpots) do
                                 if not autoTrowelEnabled then break end
 
-                                -- Check if trowel still exists (in case it broke mid-cycle)
+                                -- re-fetch trowel each sand in case it got unequipped
                                 trowel = player.Backpack:FindFirstChild("Trowel") or character:FindFirstChild("Trowel")
-                                if not trowel then break end  -- will trigger buy next loop
+                                if not trowel then break end  -- lost trowel mid-cycle, go buy again
 
-                                -- Teleport directly in front of sand
-                                pcall(function()
-                                    hrp.CFrame = sand.CFrame * CFrame.new(0, 0, -1.8)  -- adjust offset if needed (-1.5 / -2.0)
-                                end)
-
-                                task.wait(0.8)
-
-                                -- Equip if not already equipped
                                 if trowel.Parent == player.Backpack then
                                     humanoid:EquipTool(trowel)
-                                    task.wait(0.6)
+                                    task.wait(0.5)
+                                    trowel = player.Backpack:FindFirstChild("Trowel") or character:FindFirstChild("Trowel")
                                 end
 
-                                -- Dig
-                                if trowel.Parent == character then
+                                -- teleport to sand
+                                pcall(function()
+                                    hrp.CFrame = sand.CFrame * CFrame.new(0, 0, -1.8)
+                                end)
+                                task.wait(0.6)
+
+                                -- dig
+                                if trowel and trowel.Parent == character then
+                                    print("[Trowel] Digging sand!")
                                     pcall(function()
                                         VirtualUser:CaptureController()
-                                        VirtualUser:Button1Down(Vector2.new(0,0))
+                                        VirtualUser:Button1Down(Vector2.new(0, 0))
                                         task.wait(0.12)
-                                        VirtualUser:Button1Up(Vector2.new(0,0))
+                                        VirtualUser:Button1Up(Vector2.new(0, 0))
                                     end)
-                                    task.wait(2.9)  -- digging time
+                                    task.wait(2.9)
+                                else
+                                    print("[Trowel] Skipped - trowel parent:", trowel and tostring(trowel.Parent) or "NIL")
                                 end
 
-                                task.wait(0.6)  -- between sands
+                                task.wait(0.3)
                             end
 
-                            task.wait(1.2)  -- between full cycles
+                            task.wait(1.2)
                         end
 
                         autoTrowelThread = nil
