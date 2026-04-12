@@ -12,6 +12,10 @@ local MAP_BOUNDS = {
         min = Vector3.new(-2597, 78, -1562),
         max = Vector3.new(-1028, 540, 603),
     },
+    {
+        min = Vector3.new(-3199, 93, 9829),  -- true minimums
+        max = Vector3.new(-820, 556, 12364), -- true maximums
+    },
 }
 
 local function isWithinBounds(pos, mn, mx)
