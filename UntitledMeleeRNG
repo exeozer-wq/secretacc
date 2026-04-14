@@ -2043,26 +2043,30 @@ do
 
     local WarningSection = DupeTab:Section({
         Title = "WARNING - READ BEFORE USING",
-        Opened = true
+        Opened = false
     })
 
     WarningSection:Paragraph({
         Title = "GAME BREAKING FEATURES",
+		Locked = true,
         Desc = "Don't blame me if you carelessly use these features and break your game."
     })
 
     WarningSection:Paragraph({
         Title = "BE WARY",
+		Locked = true,
         Desc = "You can buy more swords than you can afford, causing your SP to go to negative; but you can not sell more than you have.\n",
     })
 
     WarningSection:Paragraph({
         Title = "HOW TO DUPE",
+		Locked = true,
         Desc = "1) Open dupe section and write the weapon type (Normal/Fusion) and name (Capitalize correctly). It is REQUIRED to have that weapon rolled already.\n2) Choose amount\n3) Save Settings\n4) Press Buy\n it will use the same amount of SP to buy the sword, which you would've gotten by selling the sword.",
     })
 
     WarningSection:Paragraph({
         Title = "HOW TO GET INFINITE SP",
+		Locked = true,
         Desc = "1) First farm kills so you can Ascend\n2) Buy the max amount of swords you can get - go to negative SPs\n3) Once you get thousands of swords duped - Ascend (Resets your SP)\n4) Then sell those swords.\n5) Enjoy your free SP",
     })
 
@@ -2118,27 +2122,14 @@ do
         end
     })
 
-    ControlsSection:Space()
-
-    -- Save button (green)
-    ControlsSection:Button({
-        Title = "Save Settings",
-        Color = Color3.fromHex("#f9bc37"),  -- green
-        Callback = function()
-            print("Settings saved → Weapon:", savedArgs.weapon, "| Mode:", savedArgs.mode, "| Amount:", savedArgs.amount)
-            WindUI:Notify({
-                Title = "Settings Saved",
-                Content = savedArgs.weapon .. " (" .. savedArgs.mode .. ") × " .. savedArgs.amount,
-                Duration = 3.5
-            })
-        end
-    })
 
     ControlsSection:Space()
 
     -- Buy button (-amount)
     ControlsSection:Button({
-        Title = "Buy - takes Skill Points; gives you sword",
+        Title = "Dupe",
+		Locked = true,
+		LockedTitle = "Patched.",
         Color = Color3.fromHex("#911b1b"),
         Callback = function()
             if savedArgs.amount <= 0 then
@@ -2159,7 +2150,7 @@ do
 
     -- Sell button (+amount)
     ControlsSection:Button({
-        Title = "Sell - gives Skill points; takes sword from you.",
+        Title = "Sell.",
         Color = Color3.fromHex("#30ff6a"),
         Callback = function()
             if savedArgs.amount <= 0 then
