@@ -7,16 +7,18 @@
 
 local WindUI
 
-do
+local attempts = 0
+repeat
+    attempts += 1
     local ok, result = pcall(function()
-        return require("./src/Init")
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
     end)
-    
-    if ok then
-        WindUI = result
-    else 
-        WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-    end
+    if ok and result then WindUI = result end
+    if not WindUI then task.wait(1) end
+until WindUI or attempts >= 3
+
+if not WindUI then
+    error("WindUI failed to load after 3 attempts")
 end
 
 --[[
