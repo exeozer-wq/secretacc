@@ -633,6 +633,17 @@ local itemNames = {
     "Banknote",  -- ← keep this if you still want banknotes highlighted
 }
 
+local function getItemPart(obj)
+    if obj:IsA("BasePart") then
+        return obj
+    elseif obj:IsA("Tool") or obj:IsA("Model") then
+        return obj:FindFirstChild("Handle")
+            or obj.PrimaryPart
+            or obj:FindFirstChildWhichIsA("BasePart", true)
+    end
+    return nil
+end
+
 local function isTargetItem(obj)
     return table.find(itemNames, obj.Name) ~= nil
 end
@@ -654,12 +665,7 @@ local function addESP(item)
     if isPickedUp then return end  -- don't create ESP at all
 
     -- Normal creation
-    local adornee
-    if item:IsA("BasePart") then
-        adornee = item
-    elseif item:IsA("Model") then
-        adornee = item:FindFirstChildWhichIsA("BasePart", true)
-    end
+    local adornee = getItemPart(item)
 
     if not adornee or not isWithinMap(adornee.Position) then return end
 
@@ -1558,7 +1564,7 @@ do
             if not hrp then return end
             for _, obj in ipairs(workspace:GetDescendants()) do
                 if isTargetItem(obj) then
-                    local part = obj:IsA("Model") and obj:FindFirstChildWhichIsA("BasePart") or obj
+                    local part = getItemPart(obj)
                     if part and part:IsA("BasePart") and isWithinMap(part.Position) then
                         hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
                         wait(0.5)
@@ -1578,7 +1584,7 @@ do
             if not hrp then return end
             for _, obj in ipairs(workspace:GetDescendants()) do
                 if obj.Name == "Banknote" then
-                    local part = obj:IsA("Model") and obj:FindFirstChildWhichIsA("BasePart") or obj
+                    local part = getItemPart(obj)
                     if part and part:IsA("BasePart") and isWithinMap(part.Position) then
                         hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
                         wait(0.5)
@@ -1600,7 +1606,7 @@ do
             for _, obj in ipairs(workspace:GetDescendants()) do
                 for _, itemName in ipairs(selectedNotifyItems) do
                     if obj.Name == itemName then
-                        local part = obj:IsA("Model") and obj:FindFirstChildWhichIsA("BasePart") or obj
+                        local part = getItemPart(obj)
                         if part and part:IsA("BasePart") and isWithinMap(part.Position) then
                             hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
                             wait(0.5)
@@ -1611,6 +1617,95 @@ do
             print("Selected items:")
             for i, v in ipairs(selectedNotifyItems) do
                 print(i, v)
+            end
+        end
+    })
+
+    local autoGrabSelectedEnabled = false
+    local autoGrabSelectedThread = nil
+
+    ESPTab:Toggle({
+        Title = "Auto Grab Selected Items",
+        Desc = "Continuously teleport to selected items as they spawn",
+        Flag = "Auto_Grab_Selected_Items",
+        Value = false,
+        Callback = function(enabled)
+            autoGrabSelectedEnabled = enabled
+
+            if enabled then
+                if #selectedNotifyItems == 0 then
+                    WindUI:Notify({
+                        Title = "No Items Selected",
+                        Content = "Select items from the dropdown first!",
+                        Duration = 3
+                    })
+                    autoGrabSelectedEnabled = false
+                    return
+                end
+
+                if not autoGrabSelectedThread then
+                    autoGrabSelectedThread = task.spawn(function()
+                        WindUI:Notify({
+                            Title = "Auto Grab Selected",
+                            Content = "Started - grabbing selected items...",
+                            Duration = 3
+                        })
+
+                        while autoGrabSelectedEnabled do
+                            local player = game.Players.LocalPlayer
+                            local character = player and (player.Character or player.CharacterAdded:Wait())
+                            local hrp = character and character:FindFirstChild("HumanoidRootPart")
+
+                            if hrp then
+                                for _, obj in ipairs(workspace:GetDescendants()) do
+                                    if not autoGrabSelectedEnabled then break end
+
+                                    -- CORRECT filter: only grab if name is in selectedNotifyItems
+                                    if not table.find(selectedNotifyItems, obj.Name) then continue end
+
+                                    -- Skip if already picked up / in Entities
+                                    local parent = obj.Parent
+                                    local isPickedUp = false
+                                    while parent do
+                                        if parent == workspace:FindFirstChild("Entities") or
+                                        (player.Character and parent:IsDescendantOf(player.Character)) then
+                                            isPickedUp = true
+                                            break
+                                        end
+                                        parent = parent.Parent
+                                    end
+                                    if isPickedUp then continue end
+
+                                    -- Find the physical part
+                                    local part = nil
+                                    if obj:IsA("BasePart") then
+                                        part = obj
+                                    elseif obj:IsA("Model") or obj:IsA("Tool") then
+                                        part = obj:FindFirstChild("Handle")
+                                            or obj.PrimaryPart
+                                            or obj:FindFirstChildWhichIsA("BasePart", true)
+                                    end
+
+                                    if part and part:IsA("BasePart") and isWithinMap(part.Position) then
+                                        hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+                                        task.wait(0.4)
+                                    end
+                                end
+                            end
+
+                            task.wait(1.5)
+                        end
+
+                        autoGrabSelectedThread = nil
+                        WindUI:Notify({
+                            Title = "Auto Grab Selected",
+                            Content = "Stopped",
+                            Duration = 2
+                        })
+                    end)
+                end
+            else
+                autoGrabSelectedEnabled = false
             end
         end
     })
@@ -1935,10 +2030,7 @@ do
                                 if trowel and trowel.Parent == character then
                                     print("[Trowel] Digging sand!")
                                     pcall(function()
-                                        VirtualUser:CaptureController()
-                                        VirtualUser:Button1Down(Vector2.new(0, 0))
-                                        task.wait(0.12)
-                                        VirtualUser:Button1Up(Vector2.new(0, 0))
+                                        trowel:Activate()
                                     end)
                                     task.wait(2.9)
                                 else
