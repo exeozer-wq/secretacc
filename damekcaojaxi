@@ -16,6 +16,10 @@ local MAP_BOUNDS = {
         min = Vector3.new(-3199, 93, 9829),  -- true minimums
         max = Vector3.new(-820, 556, 12364), -- true maximums
     },
+    {
+        min = Vector3.new(-1004, 565, -1234),
+        max = Vector3.new(1558, 1015, 1340),
+    },
 }
 
 local function isWithinBounds(pos, mn, mx)
@@ -55,9 +59,10 @@ local function detectMap()
         if isWithinBounds(pos, map.min, map.max) then
             minVec = map.min
             maxVec = map.max
+            
             print(string.format("[MapDetect] Map detected! Min: %s | Max: %s", tostring(minVec), tostring(maxVec)))
 
-            -- Map 2 specific logic
+            -- Map 2 specific logic (old tree removal)
             if minVec == Vector3.new(-2597, 78, -1562) then
                 pcall(function()
                     workspace.Map.NEWMAP.Park:GetChildren()[27]:Destroy()
@@ -65,12 +70,33 @@ local function detectMap()
                 print("Removed that one ugly ass tree as well..")
             end
 
-            return
+            -- === NEW MAP (4th map) - Remove all ShopItems ===
+            if minVec == Vector3.new(-1004, 565, -1234) 
+               or minVec == Vector3.new(-1050, 500, -1300) then   -- padded version if you use it
+                
+                pcall(function()
+                    local shopItemsFolder = workspace.Map:FindFirstChild("NEWMAP") 
+                                        and workspace.Map.NEWMAP:FindFirstChild("Buildings")
+                                        and workspace.Map.NEWMAP.Buildings:FindFirstChild("Shop")
+                                        and workspace.Map.NEWMAP.Buildings.Shop:FindFirstChild("ShopItems")
+
+                    if shopItemsFolder and shopItemsFolder.Parent then
+                        shopItemsFolder:ClearAllChildren()
+                        print("[MapDetect] Cleared all items from ShopItems folder on new map.")
+                    else
+                        warn("[MapDetect] ShopItems folder not found on new map.")
+                    end
+                end)
+            end
+
+            return  -- Important: Stop checking once map is found
         end
     end
 
     warn(string.format("[MapDetect] Position %s didn't match any known map! ESP/bounds checks may not work.", tostring(pos)))
 end
+
+
 
 -- Run detection on load
 local lp = game:GetService("Players").LocalPlayer
@@ -200,7 +226,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v2.0.3",
+        Title = "v2.0.4",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -1794,9 +1820,9 @@ do
                                         parent = parent.Parent
                                     end
                                     if isPickedUp then continue end
-
-                                    local part = obj:IsA("Model") and obj:FindFirstChildWhichIsA("BasePart", true) or (obj:IsA("BasePart") and obj)
-                                    if part and isWithinMap(part.Position) then
+                                    --here
+                                    local part = getItemPart(obj)
+                                    if part and part:IsA("BasePart") and isWithinMap(part.Position) then
                                         table.insert(itemsToFarm, part)
                                         foundAny = true
                                     end
