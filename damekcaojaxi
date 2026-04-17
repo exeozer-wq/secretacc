@@ -146,42 +146,20 @@ WindUI.Creator.AddIcons("solar", {
 })--]]
 
 -- Don't need this - because this popup appears after validation of key system
-function createPopup()
-    return WindUI:Popup({
-        Title = "Welcome to the WindUI!",
-        Icon = "bird",
-        Content = "Hello!",
-        Buttons = {
-            {
-                Title = "Hahaha",
-                Icon = "bird",
-                Variant = "Tertiary"
-            },
-            {
-                Title = "Hahaha",
-                Icon = "bird",
-                Variant = "Tertiary"
-            },
-            {
-                Title = "Hahaha",
-                Icon = "bird",
-                Variant = "Tertiary"
-            }
-        }
-    })
-end
-
-
+WindUI.Creator.AddIcons("mynamespace", {
+    ["Chito"] = "rbxassetid://83594840277895",
+})
 
 -- */  Window  /* --
 local Window = WindUI:CreateWindow({
     Title = "CHITO hub  |  🌪 Old a Bizarre Day!",
     --Author = "by .ftgs • Footagesus",
     Folder = "BizarreDaybyCHITO",
-    Icon = "solar:folder-2-bold-duotone",
-    --IconSize = 22*2,
+    Icon = "mynamespace:Chito",
+    IconSize = 22*2,
     NewElements = true,
-    --Size = UDim2.fromOffset(700,700),
+    Size = UDim2.fromOffset(900,700),
+    Theme = "MonokaiPro",
     
     HideSearchBar = false,
     
@@ -1185,7 +1163,7 @@ end
 do
     local BossesTab = ElementsSection:Tab({
         Title = "Bosses",
-        Icon = "solar:folder-with-files-bold",
+        Icon = "lucide:skull",
         IconColor = Purple,
         Border = true,
     })
@@ -1478,7 +1456,7 @@ end
 do 
     local ESPTab = ElementsSection:Tab({
         Title = "Items",
-        Icon = "solar:folder-with-files-bold",
+        Icon = "lucide:circle-pile",
         IconColor = Green,
         Border = true,
     })
@@ -2203,7 +2181,7 @@ end
 do
     local StandAutomation = ElementsSection:Tab({
         Title = "Stand Farm",
-        Icon = "solar:folder-with-files-bold",
+        Icon = "lucide:tractor",
         IconColor = Red,
         Border = true,
     })
@@ -2280,6 +2258,7 @@ do
     local autoStandFarmEnabled = false
     local autoStandThread = nil
     local targetStandIds = {}      -- ← the crucial table the toggle checks
+    local autoStoreEnabled = false
 
     -- ────────────────────────────────────────────────
     -- Helper Functions
@@ -2339,6 +2318,16 @@ do
                     Duration = 3
                 })
             end
+        end
+    })
+
+    StandAutomation:Toggle({
+        Title = "Auto Store Stand",
+        Desc = "Automatically stores your stand in an empty storage slot.",
+        Flag = "Auto_Store_Stand",
+        Value = false,
+        Callback = function(v)
+            autoStoreEnabled = v
         end
     })
 
@@ -2414,6 +2403,43 @@ do
                                     Duration = 7,
                                     Icon = "check"
                                 })
+
+                                -- Auto Store Stand
+                                if autoStoreEnabled then
+                                    task.wait(4)
+                                    local slotNames = {"Slot1", "Slot2", "Slot3", "Slot4", "Slot5", "Slot6"}
+                                    local storedSlot = nil
+                                    pcall(function()
+                                        local StandBank = lp.Data.Storage.StandBank
+                                        for _, slotName in ipairs(slotNames) do
+                                            local slot = StandBank:FindFirstChild(slotName)
+                                            if slot and slot.Value == 1 then
+                                                storedSlot = slotName
+                                                break
+                                            end
+                                        end
+                                    end)
+
+                                    if storedSlot then
+                                        pcall(function()
+                                            local args = { storedSlot, 1, "Store" }
+                                            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("StandStorage"):FireServer(unpack(args))
+                                        end)
+                                        WindUI:Notify({
+                                            Title = "Stand Stored!",
+                                            Content = standName .. " stored in " .. storedSlot,
+                                            Duration = 5,
+                                            Icon = "check"
+                                        })
+                                    else
+                                        WindUI:Notify({
+                                            Title = "No Empty Slot!",
+                                            Content = "All storage slots are full - stand NOT stored.",
+                                            Duration = 5,
+                                        })
+                                    end
+                                end
+
                                 autoStandToggle:Set(false)  -- SYNC UI OFF
                                 autoStandFarmEnabled = false
                                 break
@@ -2469,7 +2495,7 @@ do
                                 end
 
                                 ItemsRemote:FireServer()
-                                task.wait(0.75 + math.random(0.1, 0.3))
+                                task.wait(1.5 + math.random(0.1, 0.3))
 
                                 -- Show result (updated check after roll)
                                 if isSuccess() then
@@ -2480,6 +2506,44 @@ do
                                         Duration = 7,
                                         Icon = "check"
                                     })
+
+                                    -- Auto Store Stand
+                                    if autoStoreEnabled then
+                                        task.wait(4)
+                                        local slotNames = {"Slot1", "Slot2", "Slot3", "Slot4", "Slot5", "Slot6"}
+                                        local storedSlot = nil
+                                        pcall(function()
+                                            local StandBank = lp.Data.Storage.StandBank
+                                            for _, slotName in ipairs(slotNames) do
+                                                local slot = StandBank:FindFirstChild(slotName)
+                                                if slot and slot.Value == 1 then
+                                                    storedSlot = slotName
+                                                    break
+                                                end
+                                            end
+                                        end)
+
+                                        if storedSlot then
+                                            task.wait(0.5)  -- let stand data fully settle before storing
+                                            pcall(function()
+                                                local args = { storedSlot, 1, "Store" }
+                                                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("StandStorage"):FireServer(unpack(args))
+                                            end)
+                                            WindUI:Notify({
+                                                Title = "Stand Stored!",
+                                                Content = standName .. " stored in " .. storedSlot,
+                                                Duration = 5,
+                                                Icon = "check"
+                                            })
+                                        else
+                                            WindUI:Notify({
+                                                Title = "No Empty Slot!",
+                                                Content = "All storage slots are full - stand NOT stored.",
+                                                Duration = 5,
+                                            })
+                                        end
+                                    end
+
                                     autoStandToggle:Set(false)
                                     autoStandFarmEnabled = false
                                     break
@@ -2572,7 +2636,6 @@ do
             end
         end
     })
-
     -- ADD MORE THINGS BELOW
 end
 
@@ -2582,7 +2645,7 @@ end
 do
     local MiscTab = ElementsSection:Tab({
         Title = "Misc",
-        Icon = "solar:folder-with-files-bold",
+        Icon = "lucide:circle-alert",
         IconColor = Red,
         Border = true,
     })
