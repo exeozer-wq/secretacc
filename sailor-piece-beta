@@ -1,187 +1,446 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
-local Window = Rayfield:CreateWindow({
-    Name = "CHITO",
-    LoadingTitle = "CHITO",
-    LoadingSubtitle = "by flaws",
-    Theme = "Ocean",
-    DisableRayfieldPrompts = false,
-    DisableBuildWarnings = false,
-})
-
-local Tab = Window:CreateTab("Main", nil)
+local WindUI
+do
+    local ok, result = pcall(function() return require("./src/Init") end)
+    if ok then WindUI = result
+    else WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))() end
+end
 
 -- ─────────────────────────────────────────────
--- Services
+-- Services & Core Refs
 -- ─────────────────────────────────────────────
 local Players           = game:GetService("Players")
 local TweenService      = game:GetService("TweenService")
-local LocalPlayer       = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService        = game:GetService("RunService")
+local LocalPlayer       = Players.LocalPlayer
+
+-- Anti-AFK
+local vu = game:GetService("VirtualUser")
+LocalPlayer.Idled:Connect(function()
+    vu:CaptureController()
+    vu:ClickButton2(Vector2.new())
+end)
 
 -- ─────────────────────────────────────────────
 -- Remotes
 -- ─────────────────────────────────────────────
-local RequestHit = ReplicatedStorage
-    :WaitForChild("CombatSystem")
-    :WaitForChild("Remotes")
-    :WaitForChild("RequestHit")
+local CombatRemotes    = ReplicatedStorage:WaitForChild("CombatSystem"):WaitForChild("Remotes")
+local RequestHit       = CombatRemotes:WaitForChild("RequestHit")
 
 local RemoteEvents     = ReplicatedStorage:WaitForChild("RemoteEvents")
 local QuestAccept      = RemoteEvents:WaitForChild("QuestAccept")
 local AllocateStat     = RemoteEvents:WaitForChild("AllocateStat")
+local CodeRedeem       = RemoteEvents:WaitForChild("CodeRedeem")
 local TeleportToPortal = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal")
 
 -- ─────────────────────────────────────────────
--- Island Setup
+-- Island Config
 -- ─────────────────────────────────────────────
-local islandCrystals = {
-    Starter   = workspace.StarterIsland:FindFirstChild("SpawnPointCrystal_Starter"),
-    Jungle    = workspace.JungleIsland:FindFirstChild("SpawnPointCrystal_Jungle"),
-    Desert    = workspace.DesertIsland:FindFirstChild("SpawnPointCrystal_Desert"),
-    Snow      = workspace.SnowIsland:FindFirstChild("SpawnPointCrystal_Snow"),
-    Sailor    = workspace.SailorIsland:FindFirstChild("SpawnPointCrystal_Sailor"),
-    Shibuya   = workspace.ShibuyaStation:FindFirstChild("SpawnPointCrystal_Shibuya"),
-    Hollow    = workspace.HollowIsland:FindFirstChild("SpawnPointCrystal_HollowIsland"),
-    Boss      = workspace.BossIsland:FindFirstChild("SpawnPointCrystal_Boss"),
-    Shinjuku  = workspace.ShinjukuIsland:FindFirstChild("SpawnPointCrystal_Shinjuku"),
-    Slime     = workspace.SlimeIsland:FindFirstChild("SpawnPointCrystal_Slime"),
-    Academy   = workspace.AcademyIsland:FindFirstChild("SpawnPointCrystal_Academy"),
-    Judgement = workspace.JudgementIsland:FindFirstChild("SpawnPointCrystal_Judgement"),
-    Soul      = workspace.SoulDominionIsland:FindFirstChild("SpawnPointCrystal_SoulDominion"),
-    Ninja     = workspace.NinjaIsland:FindFirstChild("SpawnPointCrystal_Ninja"),
-    Lawless   = workspace.LawlessIsland:FindFirstChild("SpawnPointCrystal_Lawless"),
-    Tower     = workspace.TowerIsland:FindFirstChild("SpawnPointCrystal_Tower"),
+local ISLAND_NAMES = {
+    "Starter","Jungle","Desert","Snow","Sailor","Shibuya",
+    "Hollow","Boss", "Dungeon", "Shinjuku","Slime","Academy","Judgement",
+    "Soul","Ninja","Lawless","Tower","Easter","World"
 }
 
--- Exact portal name strings the TeleportToPortal remote expects
-local islandPortalNames = {
-    Starter   = "Starter",
-    Jungle    = "Jungle",
-    Desert    = "Desert",
-    Snow      = "Snow",
-    Sailor    = "Sailor",
-    Shibuya   = "Shibuya",
-    Hollow    = "Hollow",
-    Boss      = "Boss",
-    Shinjuku  = "Shinjuku",
-    Slime     = "Slime",
-    Academy   = "Academy",
-    Judgement = "Judgement",
-    Soul      = "Soul",
-    Ninja     = "Ninja",
-    Lawless   = "Lawless",
-    Tower     = "Tower",
+local ISLAND_CRYSTAL_SUFFIX = {
+    Starter="SpawnPointCrystal_Starter", Jungle="SpawnPointCrystal_Jungle",
+    Desert="SpawnPointCrystal_Desert",   Snow="SpawnPointCrystal_Snow",
+    Sailor="SpawnPointCrystal_Sailor",   Shibuya="SpawnPointCrystal_Shibuya",
+    Hollow="SpawnPointCrystal_HollowIsland", Boss="SpawnPointCrystal_Boss",
+    Shinjuku="SpawnPointCrystal_Shinjuku",   Slime="SpawnPointCrystal_Slime",
+    Academy="SpawnPointCrystal_Academy", Judgement="SpawnPointCrystal_Judgement",
+    Soul="SpawnPointCrystal_SoulDominion", Ninja="SpawnPointCrystal_Ninja",
+    Lawless="SpawnPointCrystal_Lawless", Tower="SpawnPointCrystal_Tower",
+    Dungeon="SpawnPointCrystal_Dungeon", Easter="SpawnPointCrystal_Easter",
+    World="SpawnPointCrystal_World"
 }
 
--- Cache crystal positions once at startup
-local islandPositions = {}
-for name, crystal in pairs(islandCrystals) do
-    if crystal then
-        local ok, pos = pcall(function() return crystal:GetPivot().Position end)
-        if ok and pos then islandPositions[name] = pos end
-    end
-end
+local ISLAND_WORKSPACE_KEY = {
+    Starter="StarterIsland",   Jungle="JungleIsland",     Desert="DesertIsland",
+    Snow="SnowIsland",         Sailor="SailorIsland",     Shibuya="ShibuyaStation",
+    Hollow="HollowIsland",     Boss="BossIsland",         Dungeon="DungeonIsland",
+    Shinjuku="ShinjukuIsland", Slime="SlimeIsland",       Academy="AcademyIsland",   
+    Judgement="JudgementIsland", Soul="SoulDominionIsland", Ninja="NinjaIsland",       
+    Lawless="LawlessIsland",   Tower="TowerIsland",       Easter="EasterIsland",
+    World="WorldIsland", 
+}
 
-local function fireCheckpoint(islandName)
-    local crystal = islandCrystals[islandName]
-    if not crystal then
-        warn("[CHITO] No crystal found for: " .. tostring(islandName))
-        return
-    end
-    pcall(function()
-        for _, child in ipairs(crystal:GetDescendants()) do
-            if child.Name == "CheckpointPrompt" and child:IsA("ProximityPrompt") then
-                fireproximityprompt(child)
-                print("[CHITO] Checkpoint fired on: " .. islandName)
-                return
-            end
-        end
-        warn("[CHITO] CheckpointPrompt ProximityPrompt not found in: " .. islandName)
-    end)
-end
 
--- Returns the closest island key to a position (within 600 studs), or nil
-local function getIslandForPosition(pos)
-    local closest, closestDist = nil, math.huge
-    for name, islandPos in pairs(islandPositions) do
-        local d = (pos - islandPos).Magnitude
-        if d < closestDist then
-            closestDist = d
-            closest = name
+local ISLAND_TELEPORT_OVERRIDE = {
+    Hollow = "HollowIsland",
+    Soul = "SoulDominion",
+}
+
+local NPC_ISLAND_HINTS = {
+    academy="Academy", arena="Lawless",   curse="Shinjuku",  desert="Desert",
+    frost="Snow",      hollow="HollowIsland",   monkey="Jungle",   ninja="Ninja",
+    quincy="Soul",     slime="Slime",     sorcerer="Shibuya",strong="Shinjuku",
+    swordsman="Judgement", thief="Starter", training="Starter", gojo="Shibuya",
+    panda="Shibuya",   yamato="Judgement", sukuna="Shibuya",  aizen="HollowIsland",
+    yuji="Shibuya",    snow="Snow",       strongest="Ninja", bunny="Easter", 
+    great="Easter",
+}
+
+local islandCrystals, islandPositions = {}, {}
+for _, name in ipairs(ISLAND_NAMES) do
+    local folder = workspace:FindFirstChild(ISLAND_WORKSPACE_KEY[name])
+    if folder then
+        local crystal = folder:FindFirstChild(ISLAND_CRYSTAL_SUFFIX[name])
+        if crystal then
+            islandCrystals[name] = crystal
+            local ok, pos = pcall(function() return crystal:GetPivot().Position end)
+            if ok and pos then islandPositions[name] = pos end
         end
     end
-    return (closestDist <= 600) and closest or nil
 end
 
 -- ─────────────────────────────────────────────
--- Mob Groups
+-- Mob Groups  (non-boss, non-Training Dummy)
 -- ─────────────────────────────────────────────
 local groups = {
-    ["AcademyTeachers"]      = {"AcademyTeacher1","AcademyTeacher2","AcademyTeacher3","AcademyTeacher4","AcademyTeacher5"},
-    ["ArenaFighters"]        = {"ArenaFighter1","ArenaFighter2","ArenaFighter3","ArenaFighter4","ArenaFighter5"},
-    ["Curses"]               = {"Curse1","Curse2","Curse3","Curse4","Curse5"},
-    ["DesertBandits"]        = {"DesertBandit1","DesertBandit2","DesertBandit3","DesertBandit4","DesertBandit5"},
-    ["FrostRogues"]          = {"FrostRogue1","FrostRogue2","FrostRogue3","FrostRogue4","FrostRogue5"},
-    ["Hollows"]              = {"Hollow1","Hollow2","Hollow3","Hollow4","Hollow5"},
-    ["Monkeys"]              = {"Monkey1","Monkey2","Monkey3","Monkey4","Monkey5"},
-    ["Ninjas"]               = {"Ninja1","Ninja2","Ninja3","Ninja4","Ninja5"},
-    ["Quincys"]              = {"Quincy1","Quincy2","Quincy3","Quincy4","Quincy5"},
-    ["Slimes"]               = {"Slime1","Slime2","Slime3","Slime4","Slime5"},
-    ["Sorcerers"]            = {"Sorcerer1","Sorcerer2","Sorcerer3","Sorcerer4","Sorcerer5"},
-    ["StrongSorcerers"]      = {"StrongSorcerer1","StrongSorcerer2","StrongSorcerer3","StrongSorcerer4","StrongSorcerer5"},
-    ["Swordsmen"]            = {"Swordsman1","Swordsman2","Swordsman3","Swordsman4","Swordsman5"},
-    ["Thiefs"]               = {"Thief1","Thief2","Thief3","Thief4","Thief5"},
-    ["AizenBoss"]            = {"AizenBoss"},
-    ["DesertBoss"]           = {"DesertBoss"},
-    ["GojoBoss"]             = {"GojoBoss"},
-    ["MonkeyBoss"]           = {"MonkeyBoss"},
-    ["PandaMiniBoss"]        = {"PandaMiniBoss"},
-    ["SnowBoss"]             = {"SnowBoss"},
-    ["StrongestShinobiBoss"] = {"StrongestShinobiBoss"},
-    ["SukunaBoss"]           = {"SukunaBoss"},
-    ["ThiefBoss"]            = {"ThiefBoss"},
-    ["YamatoBoss"]           = {"YamatoBoss"},
-    ["YujiBoss"]             = {"YujiBoss"},
-    ["TrainingDummy"]        = {"TrainingDummy"},
+    AcademyTeachers      = {"AcademyTeacher1","AcademyTeacher2","AcademyTeacher3","AcademyTeacher4","AcademyTeacher5"},
+    ArenaFighters        = {"ArenaFighter1","ArenaFighter2","ArenaFighter3","ArenaFighter4","ArenaFighter5"},
+    Curses               = {"Curse1","Curse2","Curse3","Curse4","Curse5"},
+    DesertBandits        = {"DesertBandit1","DesertBandit2","DesertBandit3","DesertBandit4","DesertBandit5"},
+    FrostRogues          = {"FrostRogue1","FrostRogue2","FrostRogue3","FrostRogue4","FrostRogue5"},
+    Hollows              = {"Hollow1","Hollow2","Hollow3","Hollow4","Hollow5"},
+    Monkeys              = {"Monkey1","Monkey2","Monkey3","Monkey4","Monkey5"},
+    Ninjas               = {"Ninja1","Ninja2","Ninja3","Ninja4","Ninja5"},
+    Quincys              = {"Quincy1","Quincy2","Quincy3","Quincy4","Quincy5"},
+    Slimes               = {"Slime1","Slime2","Slime3","Slime4","Slime5"},
+    Sorcerers            = {"Sorcerer1","Sorcerer2","Sorcerer3","Sorcerer4","Sorcerer5"},
+    StrongSorcerers      = {"StrongSorcerer1","StrongSorcerer2","StrongSorcerer3","StrongSorcerer4","StrongSorcerer5"},
+    Swordsmen            = {"Swordsman1","Swordsman2","Swordsman3","Swordsman4","Swordsman5"},
+    Thiefs               = {"Thief1","Thief2","Thief3","Thief4","Thief5"},
+    Valentines           = {"Valentine1","Valentine2","Valentine3","Valentine4","Valentine5"},
+    Bunnies              = {"Bunny1","Bunny2","Bunny3","Bunny4","Bunny5"},
+    -- Mini-bosses (not "Boss" in name, not Training Dummy — kept here)
+    PandaMiniBoss        = {"PandaMiniBoss"},
+    DesertBoss           = {"DesertBoss"},
+    MonkeyBoss           = {"MonkeyBoss"},
+    SnowBoss             = {"SnowBoss"},
+    ThiefBoss            = {"ThiefBoss"},
 }
 
-local dropdownOptions = {}
-for name in pairs(groups) do table.insert(dropdownOptions, name) end
-table.sort(dropdownOptions)
+-- ─────────────────────────────────────────────
+-- Boss Config
+-- auto = timed/auto-spawned  |  manual = requires materials
+-- island = key into ISLAND_WORKSPACE_KEY / TeleportToPortal
+-- ─────────────────────────────────────────────
+local BOSS_CONFIG = {
+    -- ── Auto-spawned bosses (sorted first) ─────────────────────────────
+    {
+        key         = "GojoBoss",
+        display     = "Limitless Sorcerer",
+        npcName     = "GojoBoss",
+        spawnType   = "auto",
+        island      = "Shibuya",
+        respawn     = 300,
+    },
+    {
+        key         = "SukunaBoss",
+        display     = "Cursed King",
+        npcName     = "SukunaBoss",
+        spawnType   = "auto",
+        island      = "Shibuya",
+        respawn     = 300,
+    },
+    {
+        key         = "YujiBoss",
+        display     = "Cursed Vessel",
+        npcName     = "YujiBoss",
+        spawnType   = "auto",
+        island      = "Shibuya",
+        respawn     = 300,
+    },
+    {
+        key         = "JinwooBoss",
+        display     = "Solo Hunter",
+        npcName     = "JinwooBoss",
+        spawnType   = "auto",
+        island      = "Sailor",
+        respawn     = 390,
+    },
+    {
+        key         = "AlucardBoss",
+        display     = "Vampire King",
+        npcName     = "AlucardBoss",
+        spawnType   = "auto",
+        island      = "Sailor",
+        respawn     = 300,
+    },
+    {
+        key         = "AizenBoss",
+        display     = "Manipulator",
+        npcName     = "AizenBoss",
+        spawnType   = "auto",
+        island      = "HollowIsland",
+        respawn     = 300,
+    },
+    {
+        key         = "TrueAizenBoss",
+        display     = "True Manipulator",
+        npcName     = "TrueAizenBoss",
+        spawnType   = "auto",
+        island      = "Soul",
+        respawn     = 300,
+    },
+    {
+        key         = "YamatoBoss",
+        display     = "Yamato",
+        npcName     = "YamatoBoss",
+        spawnType   = "auto",
+        island      = "Judgement",
+        respawn     = 390,
+    },
+    {
+        key         = "StrongestShinobiBoss",
+        display     = "Strongest Shinobi",
+        npcName     = "StrongestShinobiBoss",
+        spawnType   = "auto",
+        island      = "Ninja",
+        respawn     = 360,
+    },
+    -- ── Manually-spawned bosses ─────────────────────────────────────────
+    {
+        key         = "SaberBoss",
+        display     = "Knight",
+        npcName     = "SaberBoss",
+        spawnType   = "manual",
+        island      = "Boss",
+    },
+    {
+        key         = "QinShiBoss",
+        display     = "Qin Shi",
+        npcName     = "QinShiBoss",
+        spawnType   = "manual",
+        island      = "Boss",
+    },
+    {
+        key         = "IchigoBoss",
+        display     = "Soul Reaper",
+        npcName     = "IchigoBoss",
+        spawnType   = "manual",
+        island      = "Boss",
+    },
+    {
+        key         = "GilgameshBoss",
+        display     = "King of Heroes",
+        npcName     = "GilgameshBoss",
+        spawnType   = "manual",
+        island      = "Boss",
+    },
+    {
+        key         = "BlessedMaidenBoss",
+        display     = "Blessed Maiden",
+        npcName     = "BlessedMaidenBoss",
+        spawnType   = "manual",
+        island      = "Boss",
+    },
+    {
+        key         = "SaberAlterBoss",
+        display     = "Corrupted Knight",
+        npcName     = "SaberAlterBoss",
+        spawnType   = "manual",
+        island      = "Boss",
+    },
+    {
+        key         = "MoonSlayerBoss",
+        display     = "Moon Slayer",
+        npcName     = "MoonSlayerBoss",
+        spawnType   = "manual",
+        island      = "Boss",
+    },
+	{
+		key         = "IceQueenBoss",
+		display     = "Ice Queen",
+		npcName     = "IceQueenBoss",
+		spawnType   = "manual",
+		island      = "Boss",
+	},
+    {
+        key         = "StrongestofTodayBoss",
+        display     = "Strongest of Today",
+        npcName     = "StrongestofTodayBoss",
+        spawnType   = "manual",
+        island      = "Shinjuku",
+    },
+    {
+        key         = "StrongestinHistoryBoss",
+        display     = "Strongest in History",
+        npcName     = "StrongestinHistoryBoss",
+        spawnType   = "manual",
+        island      = "Shinjuku",
+    },
+    {
+        key         = "RimuruBoss",
+        display     = "Demon Lord",
+        npcName     = "RimuruBoss",
+        spawnType   = "manual",
+        island      = "Slime",
+    },
+    {
+        key         = "AnosBoss",
+        display     = "Demon King",
+        npcName     = "AnosBoss",
+        spawnType   = "manual",
+        island      = "Academy",
+    },
+    {
+        key         = "AtomicBoss",
+        display     = "Atomic",
+        npcName     = "AtomicBoss",
+        spawnType   = "manual",
+        island      = "Lawless",
+    },
+    {
+        key         = "GreatMageBoss",
+        display     = "Great Mage",
+        npcName     = "GreatMageBoss",
+        spawnType   = "manual",
+        island      = "Easter",
+    },
+}
+
+local MERCHANT_ITEMS = {
+    "Boss Key",
+    "Clan Reroll",
+    "Dungeon Key",
+    "Haki Color Reroll",
+    "Passive Shard",
+    "Race Reroll",
+    "Rush Key",
+    "Trait Reroll",
+}
+
+-- Build lookup map: key -> config entry
+local BOSS_MAP = {}
+for _, cfg in ipairs(BOSS_CONFIG) do
+    BOSS_MAP[cfg.key] = cfg
+end
+
+-- Build dropdown display labels
+local bossDropdownOptions = {}
+for _, cfg in ipairs(BOSS_CONFIG) do
+    local label = cfg.spawnType == "auto"
+        and ("[Auto] " .. cfg.display)
+        or  ("[Manual] " .. cfg.display)
+    table.insert(bossDropdownOptions, label)
+end
+
+-- Map label -> key for reverse lookup
+local bossLabelToKey = {}
+for _, cfg in ipairs(BOSS_CONFIG) do
+    local label = cfg.spawnType == "auto"
+        and ("[Auto] " .. cfg.display)
+        or  ("[Manual] " .. cfg.display)
+    bossLabelToKey[label] = cfg.key
+end
+
+-- Mob dropdown: sorted, no bosses, no TrainingDummy
+local mobDropdownOptions = {}
+for name in pairs(groups) do table.insert(mobDropdownOptions, name) end
+table.sort(mobDropdownOptions)
 
 -- ─────────────────────────────────────────────
 -- State
 -- ─────────────────────────────────────────────
-local selectedGroups   = {}
-local attackEnabled    = false
-local autoQuestEnabled = false
-local hasActiveQuest   = false
-local whitelistedPlayers = {}   -- ADD THIS
-local whitelistedMobs    = {}   -- ADD THIS
+local selectedMobGroup   = nil   -- single string key into groups
+local selectedBossKeys   = {}    -- list of boss keys (multi-select)
+local bossPriorityOn     = false
+local autoFarmEnabled    = false
+local farmSession        = 0   -- incremented every time autoFarm starts; loops check this to self-kill
+local currentTrackedIsland = nil  -- add this near your other state variables at the top
+local activeTween = nil  -- track current tween so we can cancel it
+local noclipEnabled = false
+local noclipConnection = nil
+local bossDeathConnections = {}  -- npcName -> RBXScriptConnection
+local bossHPThreshold = 100  -- percentage; 100 = kill fully, 10 = stop at 10% HP remaining
+local thresholdSkipped = {}  -- set of npcNames to skip because threshold was reached
+local MerchantRemotes   = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("MerchantRemotes")
+local GetMerchantStock  = MerchantRemotes:WaitForChild("GetMerchantStock")
+local PurchaseMerchant  = MerchantRemotes:WaitForChild("PurchaseMerchantItem")
+local BossDamageTracker = require(game:GetService("ReplicatedStorage").Modules.BossDamageTracker)
 
-LocalPlayer.CharacterAdded:Connect(function()
-    -- Briefly pause loops to let the new character load
-    attackEnabled = false
-    mobAuraEnabled = false
-    playerAuraEnabled = false
-    task.wait(2) -- wait for HumanoidRootPart to exist
-    -- Re-enable is left to the user via toggles
+local pityFarmEnabled    = false
+local selectedPityBoss   = nil   -- single boss key (string or nil)
+local currentPity        = nil   -- number (0-24) or nil if unknown
+local pityBossWatching   = false -- true when we're at 24/25 waiting for boss to die
+local pityBossSpawnId    = nil   -- SpawnId of the pity boss we're currently watching
+local autoMerchantEnabled  = false
+local attackEnabled      = false
+local mobAuraEnabled     = false
+local playerAuraEnabled  = false
+local autoQuestEnabled   = false
+local hasActiveQuest     = false
+local whitelistedPlayers = {}
+local whitelistedMobs    = {}
+local merchantStock        = {}       -- full stock table from server
+local selectedMerchantItems = {}      -- list of item names user wants to buy
+local moneyThreshold       = 0
+local gemThreshold         = 0
+local pityFarmSession = 0
+local selectedTool = nil
+
+-- Near the top with your other remotes
+local DamageCounter = RemoteEvents:WaitForChild("DamageCounter")
+
+-- Track our own damage per boss engagement
+local myDamageThisEngagement = 0
+local trackingDamage = false
+
+DamageCounter.OnClientEvent:Connect(function(dmg)
+    if trackingDamage and dmg and dmg > 0 then
+        myDamageThisEngagement += dmg
+    end
 end)
 
--- ─────────────────────────────────────────────
--- Quest Events
--- ─────────────────────────────────────────────
-RemoteEvents:WaitForChild("QuestUIUpdate").OnClientEvent:Connect(function()
-    hasActiveQuest = true
-end)
-RemoteEvents:WaitForChild("QuestComplete").OnClientEvent:Connect(function()
-    hasActiveQuest = false
+-- Gravity / hover state
+local hoverConnection    = nil  -- RenderStepped connection keeping player aloft
+
+RemoteEvents:WaitForChild("QuestUIUpdate").OnClientEvent:Connect(function() hasActiveQuest = true  end)
+RemoteEvents:WaitForChild("QuestComplete").OnClientEvent:Connect(function()  hasActiveQuest = false end)
+
+LocalPlayer.CharacterAdded:Connect(function(character)
+    attackEnabled        = false
+    mobAuraEnabled       = false
+    playerAuraEnabled    = false
+    currentTrackedIsland = nil
+
+    if hoverConnection then
+        hoverConnection:Disconnect()
+        hoverConnection = nil
+    end
+
+    -- Re-enable noclip if farm is running
+    if autoFarmEnabled or pityFarmEnabled then
+        setNoclip(true)
+    end
+
+    local hrp      = character:WaitForChild("HumanoidRootPart", 10)
+    local humanoid = character:WaitForChild("Humanoid", 10)
+    if not hrp or not humanoid then return end
+
+    repeat task.wait(0.2) until humanoid.Health > 0
+    task.wait(1.5)
+
+    equipTool(selectedTool)
+
+    if autoFarmEnabled then
+        farmSession = farmSession + 1
+        local mySession = farmSession
+        task.spawn(function() runAutoFarm(mySession) end)
+    end
 end)
 
+
 -- ─────────────────────────────────────────────
--- Safe Helpers — every NPC/instance access in pcall
+-- Helpers
 -- ─────────────────────────────────────────────
+local HOVER_HEIGHT    = 150   -- studs above NPC
+local TWEEN_DURATION  = 0.15
+local ATTACK_DISTANCE = 150
+local CLOSE_DISTANCE  = 100    -- how close we aim to get horizontally (we stay above)
 
 local function isNPCValid(npc)
     if not npc then return false end
@@ -193,20 +452,18 @@ local function isNPCAlive(npc)
     if not isNPCValid(npc) then return false end
     local ok, res = pcall(function()
         local h = npc:FindFirstChildOfClass("Humanoid")
-        return h ~= nil and h.Health > 0
+        return h and h.Health > 0
     end)
     return ok and res == true
 end
 
--- Returns the NPC's world position, or nil if the NPC is not loaded/reachable
 local function getNPCPosition(npc)
     if not isNPCValid(npc) then return nil end
     local ok, res = pcall(function()
         local root = npc:FindFirstChild("HumanoidRootPart")
             or npc:FindFirstChild("PrimaryPart")
             or npc:FindFirstChildWhichIsA("BasePart")
-        if not root then return nil end
-        return root.Position
+        return root and root.Position or nil
     end)
     return (ok and res) or nil
 end
@@ -219,351 +476,1593 @@ local function getPlayerRoot()
     return (ok and res) or nil
 end
 
-local function getTargetNPCs()
-    local targets = {}
-    for _, groupName in ipairs(selectedGroups) do
-        local members = groups[groupName]
-        if members then
-            for _, npcName in ipairs(members) do
-                local ok, npc = pcall(function()
-                    return workspace.NPCs:FindFirstChild(npcName)
-                end)
-                if ok and npc and isNPCAlive(npc) then
-                    table.insert(targets, npc)
+local function getIslandForPosition(pos)
+    return currentTrackedIsland
+end
+
+local function getIslandFromNPCName(npcName)
+    local lower = npcName:lower()
+    for hint, island in pairs(NPC_ISLAND_HINTS) do
+        if lower:find(hint) then return island end
+    end
+    return nil
+end
+
+
+local function waitForRespawn(timeout)
+    local deadline = tick() + (timeout or 6)
+    local root
+    repeat task.wait(0.5); root = getPlayerRoot() until root or tick() > deadline
+    return root
+end
+
+local function fireHit(pos)
+    pcall(function() RequestHit:FireServer(Vector3.new(pos.X, pos.Y, pos.Z)) end)
+end
+
+local function getBackpackTools()
+    local tools = {}
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    local character = LocalPlayer.Character
+    if backpack then
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") then table.insert(tools, tool.Name) end
+        end
+    end
+    if character then
+        for _, tool in ipairs(character:GetChildren()) do
+            if tool:IsA("Tool") then table.insert(tools, tool.Name) end
+        end
+    end
+    table.sort(tools)
+    return tools
+end
+
+local function equipTool(toolName)
+    if not toolName then return end
+    local character = LocalPlayer.Character
+    local backpack  = LocalPlayer:FindFirstChild("Backpack")
+    if not character or not backpack then return end
+
+    -- Already equipped
+    local equipped = character:FindFirstChildWhichIsA("Tool")
+    if equipped and equipped.Name == toolName then return end
+
+    -- Find in backpack and equip
+    local tool = backpack:FindFirstChild(toolName)
+    if tool then
+        LocalPlayer.Character.Humanoid:EquipTool(tool)
+    end
+end
+
+local function startToolWatcher()
+    task.spawn(function()
+        while autoFarmEnabled do
+            equipTool(selectedTool)
+            task.wait(1)
+        end
+    end)
+end
+
+local function setNoclip(enabled)
+    if enabled then
+        noclipEnabled = true
+        if noclipConnection then return end
+        noclipConnection = RunService.Stepped:Connect(function()
+            local char = LocalPlayer.Character
+            if not char then return end
+            for _, child in pairs(char:GetDescendants()) do
+                if child:IsA("BasePart") and child.CanCollide == true then
+                    child.CanCollide = false
                 end
             end
+        end)
+    else
+        noclipEnabled = false
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+    end
+end
+
+local function getBossSpawnId(npc)
+    local ok, id = pcall(function() return npc:GetAttribute("SpawnId") end)
+    return (ok and id) or nil
+end
+
+local function trackBossDeath(npc, npcName)
+    local spawnId = getBossSpawnId(npc) or npcName
+
+    if bossDeathConnections[spawnId] then
+        pcall(function() bossDeathConnections[spawnId]:Disconnect() end)
+        bossDeathConnections[spawnId] = nil
+    end
+
+    local humanoid = npc:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    local function onGone()
+        print("[AutoFarm] Boss gone, clearing skip: " .. spawnId)
+        thresholdSkipped[spawnId] = nil
+        if bossDeathConnections[spawnId] then
+            pcall(function() bossDeathConnections[spawnId]:Disconnect() end)
+            bossDeathConnections[spawnId] = nil
+        end
+        if bossDeathConnections[spawnId .. "_ancestry"] then
+            pcall(function() bossDeathConnections[spawnId .. "_ancestry"]:Disconnect() end)
+            bossDeathConnections[spawnId .. "_ancestry"] = nil
+        end
+    end
+
+    bossDeathConnections[spawnId] = humanoid.Died:Connect(onGone)
+    bossDeathConnections[spawnId .. "_ancestry"] = npc.AncestryChanged:Connect(function()
+        if not isNPCValid(npc) then onGone() end
+    end)
+end
+
+-- ─────────────────────────────────────────────
+-- Hover / Anti-Gravity
+-- Keeps the player floating HOVER_HEIGHT above the target NPC.
+-- Call startHover(npc) when beginning an attack, stopHover() when done.
+-- ─────────────────────────────────────────────
+local function stopHover()
+    if activeTween then
+        pcall(function() activeTween:Cancel() end)
+        activeTween = nil
+    end
+    if hoverConnection then
+        hoverConnection:Disconnect()
+        hoverConnection = nil
+    end
+    -- Clean up on CURRENT character, not just cached reference
+    local char = LocalPlayer.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            for _, obj in ipairs(hrp:GetChildren()) do
+                if obj:IsA("BodyPosition") or obj:IsA("BodyVelocity") or obj:IsA("BodyForce") then
+                    obj:Destroy()
+                end
+            end
+        end
+    end
+    -- Also restore physics
+    local char2 = LocalPlayer.Character
+    if char2 then
+        local hum = char2:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.PlatformStand = false
+        end
+    end
+end
+
+local function startHover(getNPCPos)
+    stopHover()  -- clear any old connection
+
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    -- Add a BodyPosition to lock us in place above the NPC
+    local bp = Instance.new("BodyPosition")
+    bp.MaxForce  = Vector3.new(1e5, 1e5, 1e5)
+    bp.D         = 500
+    bp.P         = 50000
+    bp.Parent    = hrp
+
+    local bv = Instance.new("BodyVelocity")
+    bv.MaxForce  = Vector3.new(1e9, 1e9, 1e9)
+    bv.Velocity  = Vector3.zero
+    bv.Parent    = hrp
+
+    hoverConnection = RunService.Heartbeat:Connect(function()
+        local npcPos = getNPCPos()
+        if not npcPos then return end
+        local targetPos = Vector3.new(npcPos.X, npcPos.Y + HOVER_HEIGHT, npcPos.Z)
+        bp.Position = targetPos
+        bv.Velocity = Vector3.zero
+    end)
+end
+
+local function fireTeleport(islandName)
+    local arg = ISLAND_TELEPORT_OVERRIDE[islandName] or islandName
+    pcall(function() TeleportToPortal:FireServer(arg) end)
+end
+
+-- ─────────────────────────────────────────────
+-- Teleport to island, fire checkpoint, wait to arrive
+-- ─────────────────────────────────────────────
+local function teleportToIsland(islandName)
+    print("[Teleport] Firing portal to: " .. islandName)
+    fireTeleport(islandName)
+    
+    -- Wait for the server to actually move us (position stops changing)
+    task.wait(2) -- initial delay for server to process
+    local root = getPlayerRoot()
+    if root then
+        local lastPos = root.Position
+        local stableCount = 0
+        for _ = 1, 30 do -- max ~3 more seconds
+            task.wait(0.1)
+            root = getPlayerRoot()
+            if not root then break end
+            local dist = (root.Position - lastPos).Magnitude
+            if dist < 1 then
+                stableCount += 1
+                if stableCount >= 5 then break end -- stable for 0.5s = done
+            else
+                stableCount = 0
+                lastPos = root.Position
+            end
+        end
+    end
+    
+    currentTrackedIsland = islandName
+    print("[Teleport] Tracked island set to: " .. islandName)
+    return true
+end
+
+-- Teleport to island then tween to hover above the NPC
+local function teleportAndHover(npc, islandName)
+    local arrived = teleportToIsland(islandName)
+    if not arrived then return false end
+
+    -- Tween to a position above the NPC
+    local npcPos = getNPCPosition(npc)
+    if not npcPos then return false end
+
+    local root = getPlayerRoot()
+    if not root then return false end
+
+    -- One initial tween to get close
+    local dest = Vector3.new(npcPos.X, npcPos.Y + HOVER_HEIGHT, npcPos.Z)
+    if activeTween then pcall(function() activeTween:Cancel() end) end
+	activeTween = TweenService:Create(root,
+		TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ CFrame = CFrame.new(dest) }
+	)
+	pcall(function() activeTween:Play() end)
+    task.wait(1.6)
+
+    -- Start hovering (locks player above NPC continuously)
+    startHover(function() return getNPCPosition(npc) end)
+    return true
+end
+
+-- For regular mobs on the same island: just tween above them
+local function tweenAbove(targetPos)
+    local root = getPlayerRoot()
+    if not root then return end
+    local dest = Vector3.new(targetPos.X, targetPos.Y + HOVER_HEIGHT, targetPos.Z)
+    pcall(function()
+        TweenService:Create(root,
+            TweenInfo.new(TWEEN_DURATION, Enum.EasingStyle.Linear),
+            { CFrame = CFrame.new(dest) }
+        ):Play()
+    end)
+    task.wait(TWEEN_DURATION)
+end
+
+-- ─────────────────────────────────────────────
+-- Attack loop  (fires hits while hovering above NPC)
+-- ─────────────────────────────────────────────
+local function runAttackLoop(npc, session, isBoss, npcName)
+    local spawnId = getBossSpawnId(npc) or npcName
+
+    if isBoss and bossHPThreshold < 100 then
+        -- Check here instead of before teleport — we now know this is the
+        -- live instance we actually traveled to, not a stale string match
+        if thresholdSkipped[spawnId] then
+            print("[Threshold] Skipping already-damaged instance: " .. spawnId)
+            stopHover()
+            return
+        end
+        myDamageThisEngagement = 0
+        trackingDamage = true
+        local maxHP = (npc:FindFirstChildOfClass("Humanoid") and npc:FindFirstChildOfClass("Humanoid").MaxHealth) or math.huge
+        local damageGoal = maxHP * (bossHPThreshold / 100)
+        print(string.format("[Threshold] Goal: %.0f damage (%.0f%% of %.0f HP)", damageGoal, bossHPThreshold, maxHP))
+
+        while autoFarmEnabled and farmSession == session and isNPCValid(npc) and isNPCAlive(npc) do
+            if myDamageThisEngagement >= damageGoal then
+                print(string.format("[Threshold] My damage: %.0f / %.0f — stopping.", myDamageThisEngagement, damageGoal))
+                thresholdSkipped[spawnId] = true
+                break
+            end
+            local pos = getNPCPosition(npc)
+            if not pos then task.wait(0.5); break end
+            fireHit(pos)
+            task.wait(0.35)
+        end
+
+        trackingDamage = false
+    else
+        while autoFarmEnabled and farmSession == session and isNPCValid(npc) and isNPCAlive(npc) do
+            local pos = getNPCPosition(npc)
+            if not pos then task.wait(0.5); break end
+            fireHit(pos)
+            task.wait(0.35)
+        end
+    end
+
+    stopHover()
+end
+
+-- ─────────────────────────────────────────────
+-- Find a live NPC from workspace.NPCs
+-- ─────────────────────────────────────────────
+local function findLiveNPC(npcName)
+    local ok, children = pcall(function() return workspace.NPCs:GetChildren() end)
+    if not ok then return nil end
+    for _, child in ipairs(children) do
+        if child.Name:find("^" .. npcName) and isNPCAlive(child) then
+            return child
+        end
+    end
+    return nil
+end
+
+--------------------
+
+local function getPityText()
+    local ok, text = pcall(function()
+        return LocalPlayer.PlayerGui.BossUI.MainFrame.BossHPBar.Pity.Text
+    end)
+    return (ok and type(text) == "string") and text or nil
+end
+
+local function parsePity(text)
+    -- expects "Pity: 7/25" or "Pity: X/25"
+    if not text then return nil end
+    local num = text:match("Pity:%s*(%d+)/%d+")
+    return num and tonumber(num) or nil
+end
+
+-- Background pity reader — silently updates currentPity whenever the text changes
+task.spawn(function()
+    while true do
+        local text = getPityText()
+        local parsed = parsePity(text)
+        if parsed ~= nil then
+            currentPity = parsed
+        end
+        task.wait(2)
+    end
+end)
+
+local function tryReadPityNow()
+    local text = getPityText()
+    local parsed = parsePity(text)
+    if parsed ~= nil then
+        currentPity = parsed
+        return true
+    end
+    -- X/25 — not loaded yet
+    WindUI:Notify({
+        Title    = "Pity Farm",
+        Content  = "Pity is unread (X/25). Get closer to a boss so the game loads your pity count.",
+        Icon     = "alert-triangle",
+        Duration = 6,
+    })
+    return false
+end
+
+local function findLivePityBoss()
+    if not selectedPityBoss then return nil end
+    local cfg = BOSS_MAP[selectedPityBoss]
+    if not cfg then return nil end
+    local ok, children = pcall(function() return workspace.NPCs:GetChildren() end)
+    if not ok then return nil end
+    for _, child in ipairs(children) do
+        local bossId = child:GetAttribute("BossId")
+        if bossId == cfg.npcName and isNPCAlive(child) then
+            return child
+        end
+    end
+    return nil
+end
+
+-- ─────────────────────────────────────────────
+-- Auto Farm Core Loop
+-- Priority order when bossPriorityOn:
+--   1. Look for any selected boss (auto-spawned always checked; manual only if found)
+--   2. Fall back to selected mob group
+-- When bossPriorityOn is OFF: only attack selected mob group.
+-- ─────────────────────────────────────────────
+local function waitForNPC(npcName, timeout)
+    local deadline = tick() + (timeout or 4)
+    repeat
+        local ok, children = pcall(function() return workspace.NPCs:GetChildren() end)
+        if ok then
+            for _, child in ipairs(children) do
+                local bossId = child:GetAttribute("BossId")
+                local matchByBossId = bossId == npcName
+                local matchByName = child.Name:find("^" .. npcName)
+                if (matchByBossId or matchByName) and isNPCAlive(child) then
+                    return child
+                end
+            end
+        end
+        task.wait(0.2)
+    until tick() > deadline
+    return nil
+end
+
+local function runAutoFarm(session)
+    print("[AutoFarm] Started | session=" .. session)
+
+    -- Quick presence check: is the boss model in workspace.NPCs right now?
+    local function bossExistsAnywhere(npcName)
+        local ok, children = pcall(function() return workspace.NPCs:GetChildren() end)
+        if not ok then return false, nil, nil end
+        for _, child in ipairs(children) do
+            local bossId = child:GetAttribute("BossId")
+            -- check BOTH BossId attribute AND name prefix
+            if (bossId == npcName or child.Name:find("^" .. npcName)) and isNPCAlive(child) then
+                local spawnId = getBossSpawnId(child)
+                return true, child, spawnId
+            end
+        end
+        return false, nil, nil
+    end
+
+    -- Full teleport: fire remote repeatedly, wait for position to stabilise
+    local function doTeleport(islandName)
+        print("[AutoFarm] Teleporting to: " .. islandName)
+        for _ = 1, 6 do
+            fireTeleport(islandName)
+            task.wait(0.4)
+        end
+        currentTrackedIsland = islandName
+        -- wait for position to stabilise
+        local root = getPlayerRoot()
+        if root then
+            local lastPos = root.Position
+            local stable = 0
+            for _ = 1, 30 do
+                task.wait(0.1)
+                root = getPlayerRoot()
+                if not root then break end
+                if (root.Position - lastPos).Magnitude < 1 then
+                    stable += 1
+                    if stable >= 5 then break end
+                else
+                    stable = 0
+                    lastPos = root.Position
+                end
+            end
+        end
+        task.wait(0.8) -- small extra buffer for NPCs to replicate
+    end
+
+    -- Tween to hover above a position, returns true when done
+    local function tweenToHover(targetPos, heightOffset, speed)
+        local root = getPlayerRoot()
+        if not root then return false end
+        heightOffset = heightOffset or 70
+        speed        = speed        or 120
+        local dest   = Vector3.new(targetPos.X, targetPos.Y + heightOffset, targetPos.Z)
+        local dist   = (root.Position - dest).Magnitude
+        local dur    = math.max(dist / speed, 0.3)
+        print(string.format("[AutoFarm] Tweening %.0f studs | %.2fs", dist, dur))
+        if activeTween then pcall(function() activeTween:Cancel() end); activeTween = nil end
+        activeTween = TweenService:Create(root,
+            TweenInfo.new(dur, Enum.EasingStyle.Linear),
+            { CFrame = CFrame.new(dest) }
+        )
+        pcall(function() activeTween:Play() end)
+        task.wait(dur)
+        if activeTween then pcall(function() activeTween:Cancel() end); activeTween = nil end
+        return true
+    end
+
+    while autoFarmEnabled and farmSession == session do
+
+        -- ═══════════════════════════════════════════════════════════════
+        -- BOSS PRIORITY: Step 1 — fast presence check (no teleport yet)
+        -- ═══════════════════════════════════════════════════════════════
+        local liveBoss    = nil
+        local liveBossCfg = nil
+
+        -- Re-read pity every iteration when pity farm is active
+        if pityFarmEnabled then
+            local text   = getPityText()
+            local parsed = parsePity(text)
+            if parsed ~= nil then currentPity = parsed end
+        end
+
+        -- Build the list of boss keys to check this iteration
+        local bossKeysThisIteration = {}
+
+        if bossPriorityOn and #selectedBossKeys > 0 then
+            for _, k in ipairs(selectedBossKeys) do
+                table.insert(bossKeysThisIteration, k)
+            end
+        end
+
+        -- Pity farm: at 24/25, ONLY target the pity boss (guaranteed drop kill)
+        if pityFarmEnabled and selectedPityBoss then
+            if currentPity ~= nil and currentPity >= 24 then
+                -- Override everything — only the pity boss matters now
+                bossKeysThisIteration = { selectedPityBoss }
+
+                -- Check if it's alive
+                local cfg = BOSS_MAP[selectedPityBoss]
+                if cfg then
+                    local pityNPC = findLivePityBoss()
+                    if not pityNPC then
+                        -- Boss dead/not spawned — notify once and wait
+                        if not pityBossWatching then
+                            pityBossWatching = true
+                            WindUI:Notify({
+                                Title    = "Pity Farm",
+                                Content  = "24/25 — waiting for " .. cfg.display .. " to spawn. Farming mobs.",
+                                Icon     = "clock",
+                                Duration = 6,
+                            })
+                        end
+                        -- Fall through to mob farm below
+                        bossKeysThisIteration = {}
+                    else
+                        pityBossWatching = false
+                    end
+                end
+            else
+                pityBossWatching = false
+                -- Below 24/25: add pity boss to the check list if not already there
+                if not table.find(bossKeysThisIteration, selectedPityBoss) then
+                    table.insert(bossKeysThisIteration, selectedPityBoss)
+                end
+            end
+        end
+
+        if #bossKeysThisIteration > 0 then
+            for _, bossKey in ipairs(bossKeysThisIteration) do
+                if not (autoFarmEnabled and farmSession == session) then break end
+                local cfg = BOSS_MAP[bossKey]
+                if not cfg then continue end
+
+                local exists, roughNPCCheck, roughSpawnId = bossExistsAnywhere(cfg.npcName)
+                if not exists then
+                    print("[AutoFarm] Boss model absent, skipping: " .. cfg.display)
+                    continue
+                end
+
+                local currentSpawnId = roughSpawnId or cfg.npcName
+                if thresholdSkipped[currentSpawnId] then
+                    -- For the pity boss at 24/25, never skip — clear threshold and re-engage
+                    if pityFarmEnabled and bossKey == selectedPityBoss and currentPity ~= nil and currentPity >= 24 then
+                        print("[AutoFarm] Pity 24/25 — clearing threshold skip for: " .. currentSpawnId)
+                        thresholdSkipped[currentSpawnId] = nil
+                    else
+                        print("[AutoFarm] Threshold-skipped: " .. currentSpawnId)
+                        continue
+                    end
+                end
+
+                if currentTrackedIsland ~= cfg.island then
+                    doTeleport(cfg.island)
+                    if not (autoFarmEnabled and farmSession == session) then break end
+                end
+
+                local roughNPC = nil
+                local roughSpawnId2 = nil
+                for _, child in ipairs(workspace.NPCs:GetChildren()) do
+                    local bossId = child:GetAttribute("BossId")
+                    if bossId == cfg.npcName or child.Name:find("^" .. cfg.npcName) then
+                        roughNPC = child
+                        roughSpawnId2 = getBossSpawnId(child)
+                        break
+                    end
+                end
+                local roughPos = nil
+                if roughNPC then
+                    local ok, pos = pcall(function() return roughNPC:GetPivot().Position end)
+                    if ok and pos then roughPos = pos end
+                end
+                if roughPos then
+                    local root = getPlayerRoot()
+                    if root then
+                        local startPos = root.Position
+                        local destPos  = Vector3.new(roughPos.X, roughPos.Y + 70, roughPos.Z)
+                        local STEPS    = 3
+                        for i = 1, STEPS do
+                            if not (autoFarmEnabled and farmSession == session) then break end
+                            root = getPlayerRoot()
+                            if not root then break end
+                            local alpha    = i / STEPS
+                            local stepDest = startPos:Lerp(destPos, alpha)
+                            local stepDist = (root.Position - stepDest).Magnitude
+                            local stepDur  = math.max(stepDist / 120, 0.3)
+                            if activeTween then pcall(function() activeTween:Cancel() end); activeTween = nil end
+                            activeTween = TweenService:Create(root,
+                                TweenInfo.new(stepDur, Enum.EasingStyle.Linear),
+                                { CFrame = CFrame.new(stepDest) }
+                            )
+                            pcall(function() activeTween:Play() end)
+                            task.wait(stepDur + 0.3)
+                            if activeTween then pcall(function() activeTween:Cancel() end); activeTween = nil end
+                        end
+                    end
+                    if not (autoFarmEnabled and farmSession == session) then break end
+                end
+
+                local npc = waitForNPC(cfg.npcName, 5)
+                if npc then
+                    liveBoss    = npc
+                    liveBossCfg = cfg
+                    trackBossDeath(npc, cfg.npcName)
+                    print("[AutoFarm] Live boss confirmed: " .. cfg.display)
+                    break
+                end
+            end
+        end
+
+        -- ═══════════════════════════════════════════════════════════════
+        -- BOSS ATTACK
+        -- ═══════════════════════════════════════════════════════════════
+        if liveBoss and liveBossCfg then
+            if not (autoFarmEnabled and farmSession == session) then continue end
+            local cfg = liveBossCfg
+            local npc = liveBoss
+
+            local finalPos = getNPCPosition(npc)
+            if finalPos then
+                tweenToHover(finalPos, 70, 120)
+                if not (autoFarmEnabled and farmSession == session) then stopHover(); continue end
+                startHover(function() return getNPCPosition(npc) end)
+                task.wait(0.5)
+                if not (autoFarmEnabled and farmSession == session) then stopHover(); continue end
+                print("[AutoFarm] Attacking boss: " .. cfg.npcName)
+                -- At pity 24/25, always fully kill regardless of threshold setting
+                local isPityKill = pityFarmEnabled and liveBossCfg.key == selectedPityBoss
+                    and currentPity ~= nil and currentPity >= 24
+                if isPityKill then
+                    local savedThreshold = bossHPThreshold
+                    bossHPThreshold = 100
+                    runAttackLoop(npc, session, true, cfg.npcName)
+                    bossHPThreshold = savedThreshold
+                    -- Re-read pity after the kill
+                    task.wait(1.5)
+                    local newPity = parsePity(getPityText())
+                    if newPity ~= nil then
+                        currentPity = newPity
+                        print("[AutoFarm] Pity after kill: " .. tostring(currentPity))
+                    end
+                else
+                    runAttackLoop(npc, session, true, cfg.npcName)
+                end
+                print("[AutoFarm] Boss loop ended: " .. cfg.npcName)
+            end
+            task.wait(3.5)
+            stopHover()
+            task.wait(0.3)
+
+        -- ═══════════════════════════════════════════════════════════════
+        -- MOB FARM
+        -- ═══════════════════════════════════════════════════════════════
+        elseif selectedMobGroup then
+            if not (autoFarmEnabled and farmSession == session) then continue end
+            print("[AutoFarm] Mob farming: " .. tostring(selectedMobGroup))
+            local npcNames = groups[selectedMobGroup]
+            local didAttack = false
+
+            if npcNames then
+                local foundMob = nil
+                for _, npcName in ipairs(npcNames) do
+                    if not (autoFarmEnabled and farmSession == session) then break end
+                    local npc = findLiveNPC(npcName)
+                    if npc then foundMob = { name = npcName, npc = npc }; break end
+                end
+
+                if foundMob then
+                    local npcName = foundMob.name
+                    local npc     = foundMob.npc
+
+                    local targetIsland = getIslandFromNPCName(npcName)
+                    if targetIsland and currentTrackedIsland ~= targetIsland then
+                        doTeleport(targetIsland)
+                        if not (autoFarmEnabled and farmSession == session) then continue end
+                        npc = waitForNPC(npcName, 5)
+                        if not npc then
+                            print("[AutoFarm] Mob gone after teleport: " .. npcName)
+                            currentTrackedIsland = nil
+                        end
+                    end
+
+                    if npc and (autoFarmEnabled and farmSession == session) then
+                        local npcPos = getNPCPosition(npc)
+                        if npcPos then
+                            tweenToHover(npcPos, 70, 120)
+                            if not (autoFarmEnabled and farmSession == session) then continue end
+
+                            -- Re-find mob after tween — it may have moved or respawned
+                            npc = findLiveNPC(npcName)
+                            if not npc then
+                                -- Try waitForNPC as fallback
+                                npc = waitForNPC(npcName, 3)
+                            end
+
+                            if npc then
+                                local finalPos = getNPCPosition(npc)
+                                if finalPos then
+                                    -- Snap directly on top of the confirmed live position
+                                    local root = getPlayerRoot()
+                                    if root then
+                                        root.CFrame = CFrame.new(Vector3.new(finalPos.X, finalPos.Y + 70, finalPos.Z))
+                                    end
+                                    startHover(function() return getNPCPosition(npc) end)
+                                    task.wait(0.5)
+                                    if not (autoFarmEnabled and farmSession == session) then stopHover(); continue end
+                                    print("[AutoFarm] Attacking mob: " .. npcName)
+                                    runAttackLoop(npc, session, false, npcName)
+                                    print("[AutoFarm] Mob loop ended: " .. npcName)
+                                    stopHover()
+                                    task.wait(0.3)
+                                    didAttack = true
+                                end
+                            else
+                                print("[AutoFarm] Mob died during travel: " .. npcName)
+                            end
+                        end
+                    end
+                end
+            end
+
+            if not didAttack then
+                print("[AutoFarm] Nothing to attack, waiting...")
+                task.wait(0.7)
+            end
+
+        else
+            print("[AutoFarm] Nothing selected, waiting...")
+            task.wait(0.7)
+        end
+
+        if autoFarmEnabled and farmSession == session then
+            task.wait(1)
+        end
+    end
+
+    print("[AutoFarm] Stopped | session=" .. session)
+    stopHover()
+    if activeTween then pcall(function() activeTween:Cancel() end); activeTween = nil end
+end
+
+-- ─────────────────────────────────────────────
+-- Legacy Auto Attack helpers (Killaura / Player Aura untouched)
+-- ─────────────────────────────────────────────
+local function getTargetNPCs()
+    local targets = {}
+    if selectedMobGroup then
+        for _, npcName in ipairs(groups[selectedMobGroup] or {}) do
+            local ok, npc = pcall(function() return workspace.NPCs:FindFirstChild(npcName) end)
+            if ok and npc and isNPCAlive(npc) then table.insert(targets, npc) end
         end
     end
     return targets
 end
 
--- ─────────────────────────────────────────────
--- Tween towards a world position.
--- Does NOT call Completed:Wait() — waits fixed duration instead.
--- ─────────────────────────────────────────────
-local TWEEN_DURATION = 0.15
+local function runAutoDemoniteQuest()
+    -- Optional: Add level check if the game requires it
+    -- local level = LocalPlayer.Data.Level.Value
+    -- if level < 1000 then ... return end
 
-local function tweenTowards(targetPos)
-    local root = getPlayerRoot()
-    if not root then return end
+    WindUI:Notify({Title = "Demonite Quest", Content = "Collecting Demonite Cores...", Icon = "play", Duration = 4})
 
-    local ok, dir = pcall(function() return targetPos - root.Position end)
-    if not ok or dir.Magnitude < 1 then return end
+    -- Both are at Academy Island
+    fireTeleport("Academy")
+    task.wait(2) -- Wait for island load
 
-    -- Stop 100 studs short so we don't overshoot into the NPC
-    local dest = targetPos - dir.Unit * 100
+    local demoniteList = {
+        "DemoniteCore1",
+        "DemoniteCore2"
+    }
 
-    pcall(function()
-        TweenService:Create(
-            root,
-            TweenInfo.new(TWEEN_DURATION, Enum.EasingStyle.Linear),
-            { CFrame = CFrame.new(dest, targetPos) }
-        ):Play()
-    end)
+    for _, targetName in ipairs(demoniteList) do
+        local core = workspace:FindFirstChild(targetName)
+        if core then
+            local root = getPlayerRoot()
+            if root then 
+                -- Teleport directly to core
+                root.CFrame = core:GetPivot() * CFrame.new(0, 3, 0) 
+            end
+            task.wait(0.3)
 
-    task.wait(TWEEN_DURATION) -- fixed yield, never hangs
+            local prompt = core:FindFirstChild("DemoniteCollectPrompt") or core:FindFirstChildOfClass("ProximityPrompt")
+            if prompt then
+                -- Standardize prompt for instant collect
+                pcall(function()
+                    prompt.HoldDuration = 0
+                    prompt.MaxActivationDistance = 9e9
+                    prompt.RequiresLineOfSight = false
+                end)
+                task.wait(0.1)
+
+                -- Fire interaction
+                if fireproximityprompt then 
+                    fireproximityprompt(prompt)
+                else 
+                    prompt:InputHoldBegin() 
+                    task.wait(0.05) 
+                    prompt:InputHoldEnd() 
+                end
+
+                -- Cleanup
+                task.wait(0.2)
+                pcall(function() prompt:InputHoldEnd() end)
+            end
+        end
+        task.wait(0.2)
+    end
+
+    WindUI:Notify({Title = "Demonite Quest", Content = "Finished collecting cores!", Icon = "check", Duration = 5})
 end
 
--- ─────────────────────────────────────────────
--- Teleport to the NPC's island, verify arrival,
--- then tween close. Returns true if ready to attack.
--- Only called when NPC is > 400 studs away.
--- ─────────────────────────────────────────────
-local function teleportAndApproach(npc, npcPos)
-    local targetIsland = getIslandForPosition(npcPos)
-    if not targetIsland then
-        warn("[CHITO] Cannot determine island for NPC: " .. tostring(npc.Name))
-        return false
+local function runAutoHogyokuQuest()
+    local level = LocalPlayer.Data.Level.Value
+    if level < 5000 then
+        WindUI:Notify({Title = "Hogyoku Quest", Content = "You need Level 5000!", Icon = "x", Duration = 5})
+        return
     end
 
-    local portalName = islandPortalNames[targetIsland]
-    if not portalName then
-        warn("[CHITO] No portal name for island: " .. targetIsland)
-        return false
+    WindUI:Notify({Title = "Hogyoku Quest", Content = "Collecting Hogyoku Fragments...", Icon = "play", Duration = 4})
+
+    local hogyokuList = {
+        {name = "Snow Island",      target = "HogyokuFragment1", teleportName = "Snow"},
+        {name = "Shibuya Station",  target = "HogyokuFragment2", teleportName = "Shibuya"},
+        {name = "Hollow Island",    target = "HogyokuFragment3", teleportName = "Hollow"},
+        {name = "Shinjuku Island",  target = "HogyokuFragment4", teleportName = "Shinjuku"},
+        {name = "Slime Island",     target = "HogyokuFragment5", teleportName = "Slime"},
+        {name = "Judgement Island", target = "HogyokuFragment6", teleportName = "Judgement"},
+    }
+
+    for i, data in ipairs(hogyokuList) do
+        fireTeleport(data.teleportName)
+        task.wait(1.5)
+
+        local fragment = workspace:FindFirstChild(data.target)
+        if fragment then
+            local root = getPlayerRoot()
+            if root then root.CFrame = fragment:GetPivot() end
+            task.wait(0.2)
+
+            local prompt = fragment:FindFirstChildOfClass("ProximityPrompt")
+            if prompt then
+                pcall(function()
+                    prompt.HoldDuration = 0
+                    prompt.MaxActivationDistance = 9e9
+                    prompt.RequiresLineOfSight = false
+                end)
+                task.wait(0.1)
+
+                if fireproximityprompt then fireproximityprompt(prompt)
+                else prompt:InputHoldBegin() task.wait(0.05) prompt:InputHoldEnd() end
+
+                -- CLEANUP
+                task.wait(0.1)
+                pcall(function() prompt:InputHoldEnd() prompt.Enabled = false end)
+            end
+        end
+        task.wait(0.1)
+    end
+    WindUI:Notify({Title = "Hogyoku Quest", Content = "Finished!", Icon = "check", Duration = 6})
+end
+
+local function runAutoSlimeQuest()
+    local level = LocalPlayer.Data.Level.Value
+    if level < 5000 then
+        WindUI:Notify({Title = "Slime Quest", Content = "Level 5000 required!", Icon = "x", Duration = 5})
+        return
     end
 
-    print("[CHITO] Teleporting to " .. portalName)
-    pcall(function() TeleportToPortal:FireServer(portalName) end)
+    WindUI:Notify({Title = "Slime Quest", Content = "Collecting Slime Pieces...", Icon = "play", Duration = 4})
 
-    task.wait(3)
+    local slimeLocations = {
+        {name = "Desert",   folder = "DesertIsland",    pos = Vector3.new(-852, 1, -319)},
+        {name = "Snow",     folder = "SnowIsland",      pos = Vector3.new(-438, 23, -1182)},
+        {name = "Starter",  folder = "StarterIsland",   pos = Vector3.new(64, 35, -145)},
+        {name = "Jungle",   folder = "JungleIsland",    pos = Vector3.new(-581, 57, 313)},
+        {name = "Shibuya",  folder = "ShibuyaStation",  pos = Vector3.new(1748, 9, 493)},
+        {name = "Hollow",   folder = "HollowIsland",    pos = Vector3.new(-433, 22, 1398)},
+        {name = "Shinjuku", folder = "ShinjukuIsland",  pos = Vector3.new(788, 68, -2309)},
+    }
 
-    -- Fire checkpoint so death respawns us nearby
-    fireCheckpoint(targetIsland)
-    print("[CHITO] Checkpoint set on: " .. targetIsland)
+    for _, data in ipairs(slimeLocations) do
+        fireTeleport(data.name) 
+        task.wait(1.5)
 
-    task.wait(0.5) -- small buffer after checkpoint fire
+        local root = getPlayerRoot()
+        if root then root.CFrame = CFrame.new(data.pos) end
+        task.wait(0.2)
 
-    -- Verify arrival
-    local arrived = false
-    local deadline = tick() + 5
-    while tick() < deadline do
+        local folder = workspace:FindFirstChild(data.folder)
+        local piece = folder and folder:FindFirstChild("SlimePuzzlePiece")
+
+        if piece then
+            local prompt = piece:FindFirstChild("PuzzlePrompt") or piece:FindFirstChildOfClass("ProximityPrompt")
+            if prompt then
+                pcall(function()
+                    prompt.HoldDuration = 0
+                    prompt.MaxActivationDistance = 9e9
+                    prompt.RequiresLineOfSight = false
+                end)
+                task.wait(0.1)
+
+                if fireproximityprompt then fireproximityprompt(prompt)
+                else prompt:InputHoldBegin() task.wait(0.05) prompt:InputHoldEnd() end
+
+                -- CLEANUP
+                task.wait(0.1)
+                pcall(function() prompt:InputHoldEnd() prompt.Enabled = false end)
+            end
+        end
+        task.wait(0.1)
+    end
+    WindUI:Notify({Title = "Slime Quest", Content = "Finished!", Icon = "check", Duration = 6})
+end
+
+local function runAutoDungeonQuest()
+    local level = LocalPlayer.Data.Level.Value
+    if level < 5000 then
+        WindUI:Notify({Title = "Dungeon Quest", Content = "Level 5000 required!", Icon = "x", Duration = 5})
+        return
+    end
+
+    WindUI:Notify({Title = "Dungeon Quest", Content = "Collecting Dungeon Pieces...", Icon = "play", Duration = 4})
+
+    local islands = {
+        {name = "Starter",   folder = "StarterIsland"},
+        {name = "Jungle",    folder = "JungleIsland"},
+        {name = "Desert",    folder = "DesertIsland"},
+        {name = "Snow",      folder = "SnowIsland"},
+        {name = "Shibuya",   folder = "ShibuyaStation"},
+        {name = "Hollow",    folder = "HollowIsland"},
+    }
+
+    for _, islandData in ipairs(islands) do
+        fireTeleport(islandData.name)
+        task.wait(1.5)
+
+        local folder = workspace:FindFirstChild(islandData.folder)
+        local puzzle = folder and folder:FindFirstChild("DungeonPuzzlePiece")
+
+        if puzzle then
+            local root = getPlayerRoot()
+            if root then root.CFrame = puzzle:GetPivot() * CFrame.new(0, 2, 0) end
+            task.wait(0.2)
+
+            local prompt = puzzle:FindFirstChild("PuzzlePrompt") or puzzle:FindFirstChildOfClass("ProximityPrompt")
+            if prompt then
+                pcall(function()
+                    prompt.HoldDuration = 0
+                    prompt.MaxActivationDistance = 9e9
+                    prompt.RequiresLineOfSight = false
+                end)
+                task.wait(0.1)
+
+                if fireproximityprompt then fireproximityprompt(prompt)
+                else prompt:InputHoldBegin() task.wait(0.05) prompt:InputHoldEnd() end
+
+                -- CLEANUP
+                task.wait(0.1)
+                pcall(function() prompt:InputHoldEnd() prompt.Enabled = false end)
+            end
+        end
+        task.wait(0.1)
+    end
+    WindUI:Notify({Title = "Dungeon Quest", Content = "Finished!", Icon = "check", Duration = 6})
+end
+
+function createPopup()
+	return WindUI:Popup({
+		Title = "Welcome to the WindUI!",
+		Icon = "bird",
+		Content = "Hello!",
+		Buttons = {
+			{
+				Title = "Hahaha",
+				Icon = "bird",
+				Variant = "Tertiary",
+			},
+			{
+				Title = "Hahaha",
+				Icon = "bird",
+				Variant = "Tertiary",
+			},
+			{
+				Title = "Hahaha",
+				Icon = "bird",
+				Variant = "Tertiary",
+			},
+		},
+	})
+end
+
+
+
+local function runPityFarm(session)
+    print("[PityFarm] Started | session=" .. session)
+    local capturedFarmSession = farmSession
+
+    -- Inner teleport (reuses existing doTeleport pattern)
+    local function doTeleport(islandName)
+        print("[PityFarm] Teleporting to: " .. islandName)
+        for _ = 1, 6 do
+            fireTeleport(islandName)
+            task.wait(0.4)
+        end
+        currentTrackedIsland = islandName
         local root = getPlayerRoot()
         if root then
-            local ok, island = pcall(getIslandForPosition, root.Position)
-            if ok and island == targetIsland then
-                arrived = true
-                break
+            local lastPos = root.Position
+            local stable  = 0
+            for _ = 1, 30 do
+                task.wait(0.1)
+                root = getPlayerRoot()
+                if not root then break end
+                if (root.Position - lastPos).Magnitude < 1 then
+                    stable += 1
+                    if stable >= 5 then break end
+                else
+                    stable = 0
+                    lastPos = root.Position
+                end
             end
         end
         task.wait(0.5)
     end
 
-    if not arrived then
-        warn("[CHITO] Failed to verify arrival on: " .. portalName)
-        return false
+    local function tweenToHoverPity(targetPos, heightOffset, speed)
+        local root = getPlayerRoot()
+        if not root then return false end
+        heightOffset = heightOffset or 70
+        speed        = speed        or 120
+        local dest   = Vector3.new(targetPos.X, targetPos.Y + heightOffset, targetPos.Z)
+        local dist   = (root.Position - dest).Magnitude
+        local dur    = math.max(dist / speed, 0.3)
+        if activeTween then pcall(function() activeTween:Cancel() end); activeTween = nil end
+        activeTween = TweenService:Create(root,
+            TweenInfo.new(dur, Enum.EasingStyle.Linear),
+            { CFrame = CFrame.new(dest) }
+        )
+        pcall(function() activeTween:Play() end)
+        task.wait(dur)
+        if activeTween then pcall(function() activeTween:Cancel() end); activeTween = nil end
+        return true
     end
 
-    print("[CHITO] Arrived. Tweening to NPC...")
+    while pityFarmEnabled and pityFarmSession == session do
 
-    -- Tween approach with death recovery:
-    -- If character dies mid-tween, wait for respawn then continue
-    local approachDeadline = tick() + 15 -- slightly longer to account for respawn
-    while attackEnabled and isNPCAlive(npc) and tick() < approachDeadline do
-        local root = getPlayerRoot()
+        -- Always re-read pity from GUI
+        local text   = getPityText()
+        local parsed = parsePity(text)
+        if parsed ~= nil then currentPity = parsed end
 
-        -- Death recovery: root nil means we're respawning
-        if not root then
-            print("[CHITO] Character dead, waiting for respawn...")
+        local cfg = selectedPityBoss and BOSS_MAP[selectedPityBoss]
+        if not cfg then
             task.wait(1)
+            continue
+        end
 
-            -- Wait up to 6s for character to respawn at checkpoint
-            local respawnDeadline = tick() + 6
-            while tick() < respawnDeadline do
-                root = getPlayerRoot()
-                if root then
-                    print("[CHITO] Respawned, resuming tween...")
-                    break
+        -- ── At 24/25: pity-only mode ──────────────────────────────────
+        if currentPity ~= nil and currentPity >= 24 then
+
+            local pityNPC = findLivePityBoss()
+
+            if pityNPC then
+                -- Pity boss is alive — go kill it (this is the guaranteed drop kill)
+                pityBossWatching = false
+                print("[PityFarm] 24/25 — attacking pity boss: " .. cfg.display)
+
+                if currentTrackedIsland ~= cfg.island then
+                    doTeleport(cfg.island)
+                    if not (pityFarmEnabled and pityFarmSession == session) then break end
                 end
+
+                local npcPos = getNPCPosition(pityNPC)
+                if npcPos then
+                    tweenToHoverPity(npcPos, 70, 120)
+                    if not (pityFarmEnabled and pityFarmSession == session) then stopHover(); break end
+                    startHover(function() return getNPCPosition(pityNPC) end)
+                    task.wait(0.5)
+                    if not (pityFarmEnabled and pityFarmSession == session) then stopHover(); break end
+
+                    -- At 24/25 we ALWAYS fully kill — ignore bossHPThreshold for pity kill
+                    local savedThreshold = bossHPThreshold
+                    bossHPThreshold = 100
+                    runAttackLoop(pityNPC, capturedFarmSession, true, cfg.npcName)
+                    bossHPThreshold = savedThreshold
+
+                    stopHover()
+                    task.wait(0.5)
+
+                    -- Re-read pity after kill
+                    task.wait(1.5)  -- small wait for server to update GUI
+                    local newText = getPityText()
+                    local newPity = parsePity(newText)
+                    if newPity ~= nil then currentPity = newPity end
+                    print("[PityFarm] Pity after kill: " .. tostring(currentPity))
+                end
+
+            else
+                -- Pity boss is dead / not spawned yet — farm mobs, watch for it
+                if not pityBossWatching then
+                    pityBossWatching = true
+                    WindUI:Notify({
+                        Title    = "Pity Farm",
+                        Content  = "24/25 — waiting for " .. cfg.display .. " to spawn. Farming mobs.",
+                        Icon     = "clock",
+                        Duration = 6,
+                    })
+                end
+
+                -- Farm one mob cycle then loop back
+                if selectedMobGroup then
+                    local npcNames = groups[selectedMobGroup]
+                    if npcNames then
+                        for _, npcName in ipairs(npcNames) do
+                            if not (pityFarmEnabled and pityFarmSession == session) then break end
+                            local mobNPC = findLiveNPC(npcName)
+                            if mobNPC then
+                                local mobPos = getNPCPosition(mobNPC)
+                                if mobPos then
+                                    tweenToHoverPity(mobPos, 70, 120)
+                                    mobNPC = waitForNPC(npcName, 2)
+                                    if mobNPC then
+                                        local finalPos = getNPCPosition(mobNPC)
+                                        if finalPos then
+                                            startHover(function() return getNPCPosition(mobNPC) end)
+                                            task.wait(0.3)
+                                            runAttackLoop(mobNPC, capturedFarmSession, false, npcName)
+                                            stopHover()
+                                        end
+                                    end
+                                end
+                                break  -- one mob per cycle so we can re-check pity boss quickly
+                            end
+                        end
+                    end
+                end
+
                 task.wait(0.5)
             end
 
-            if not root then
-                warn("[CHITO] Respawn timed out, aborting approach")
-                return false
+        -- ── Below 24/25: normal farm (all selected bosses + pity boss included) ──
+        else
+            pityBossWatching = false
+
+            -- Check all selected bosses (same logic as runAutoFarm's boss block)
+            -- but ALSO include the pity boss even if not in selectedBossKeys
+            local bossKeysToCheck = {}
+            for _, k in ipairs(selectedBossKeys) do table.insert(bossKeysToCheck, k) end
+
+            -- Add pity boss if not already in the list
+            if selectedPityBoss and not table.find(bossKeysToCheck, selectedPityBoss) then
+                table.insert(bossKeysToCheck, selectedPityBoss)
+            end
+
+            local liveBoss    = nil
+            local liveBossCfg = nil
+
+            for _, bossKey in ipairs(bossKeysToCheck) do
+                if not (pityFarmEnabled and pityFarmSession == session) then break end
+                local bossCfg = BOSS_MAP[bossKey]
+                if not bossCfg then continue end
+
+                local ok, children = pcall(function() return workspace.NPCs:GetChildren() end)
+                if not ok then continue end
+                local found = nil
+                for _, child in ipairs(children) do
+                    if child:GetAttribute("BossId") == bossCfg.npcName and isNPCAlive(child) then
+                        found = child; break
+                    end
+                end
+                if not found then continue end
+
+                if currentTrackedIsland ~= bossCfg.island then
+                    doTeleport(bossCfg.island)
+                    if not (pityFarmEnabled and pityFarmSession == session) then break end
+                end
+
+                local npc = waitForNPC(bossCfg.npcName, 2)
+                if npc then
+                    liveBoss    = npc
+                    liveBossCfg = bossCfg
+                    break
+                end
+            end
+
+            if liveBoss and liveBossCfg then
+                local npcPos = getNPCPosition(liveBoss)
+                if npcPos then
+                    tweenToHoverPity(npcPos, 70, 120)
+                    if not (pityFarmEnabled and pityFarmSession == session) then stopHover(); continue end
+                    startHover(function() return getNPCPosition(liveBoss) end)
+                    task.wait(0.5)
+                    if not (pityFarmEnabled and pityFarmSession == session) then stopHover(); continue end
+                    runAttackLoop(liveBoss, capturedFarmSession, true, liveBossCfg.npcName)
+                    stopHover()
+                    task.wait(0.3)
+
+                    -- Re-read pity after every kill
+                    task.wait(1.5)
+                    local newText = getPityText()
+                    local newPity = parsePity(newText)
+                    if newPity ~= nil then currentPity = newPity end
+                    print("[PityFarm] Pity after kill: " .. tostring(currentPity))
+                end
+            elseif selectedMobGroup then
+                -- No boss found, farm a mob
+                local npcNames = groups[selectedMobGroup]
+                if npcNames then
+                    for _, npcName in ipairs(npcNames) do
+                        if not (pityFarmEnabled and pityFarmSession == session) then break end
+                        local mobNPC = findLiveNPC(npcName)
+                        if mobNPC then
+                            local mobPos = getNPCPosition(mobNPC)
+                            if mobPos then
+                                tweenToHoverPity(mobPos, 70, 120)
+                                mobNPC = waitForNPC(npcName, 2)
+                                if mobNPC then
+                                    local finalPos = getNPCPosition(mobNPC)
+                                    if finalPos then
+                                        startHover(function() return getNPCPosition(mobNPC) end)
+                                        task.wait(0.3)
+                                        runAttackLoop(mobNPC, capturedFarmSession, false, npcName)
+                                        stopHover()
+                                    end
+                                end
+                            end
+                            break
+                        end
+                    end
+                end
+            else
+                task.wait(0.7)
             end
         end
 
-        local pos = getNPCPosition(npc)
-        if not pos then return false end
-
-        if (root.Position - pos).Magnitude <= 150 then break end
-
-        tweenTowards(pos)
+        if pityFarmEnabled and pityFarmSession == session then
+            task.wait(0.5)
+        end
     end
 
-    return attackEnabled and isNPCAlive(npc)
+    pityBossWatching = false
+    stopHover()
+    print("[PityFarm] Stopped | session=" .. session)
 end
 
--- ─────────────────────────────────────────────
--- Quest NPC lookup
--- ─────────────────────────────────────────────
-local function getQuestNPC(level)
-    if level <= 99 then return "QuestNPC1"
-    elseif level <= 249 then return "QuestNPC2"
-    elseif level <= 499 then return "QuestNPC3"
-    elseif level <= 749 then return "QuestNPC4"
-    elseif level <= 999 then return "QuestNPC5"
-    elseif level <= 1499 then return "QuestNPC6"
-    elseif level <= 1999 then return "QuestNPC7"
-    elseif level <= 2999 then return "QuestNPC8"
-    elseif level <= 3999 then return "QuestNPC9"
-    elseif level <= 5000 then return "QuestNPC10"
-    elseif level <= 6250 then return "QuestNPC11"
-    elseif level <= 7000 then return "QuestNPC12"
-    elseif level <= 7999 then return "QuestNPC13"
-    elseif level <= 9000 then return "QuestNPC14"
-    elseif level <= 10000 then return "QuestNPC15"
-    elseif level <= 10750 then return "QuestNPC16"
-    elseif level <= 11500 then return "QuestNPC17"
-    elseif level <= 12000 then return "QuestNPC18"
-    else return "QuestNPC19"
-    end
+
+-- Pity Boss dropdown (single-select, deselectable)
+local pityBossOptions = {"(None)"}
+for _, cfg in ipairs(BOSS_CONFIG) do
+    local label = cfg.spawnType == "auto"
+        and ("[Auto] " .. cfg.display)
+        or  ("[Manual] " .. cfg.display)
+    table.insert(pityBossOptions, label)
 end
 
--- ─────────────────────────────────────────────
--- GUI: Main Tab
--- ─────────────────────────────────────────────
 
-Tab:CreateDropdown({
-    Name = "Select Mob",
-    Options = dropdownOptions,
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "MobDropdown",
-    Callback = function(selected)
-        selectedGroups = (selected and selected[1]) and {selected[1]} or {}
+-- ─────────────────────────────────────────────
+-- Window
+-- ─────────────────────────────────────────────
+WindUI.Creator.AddIcons("mynamespace", {
+    ["Chito"] = "rbxassetid://83594840277895",
+})
+
+local Window = WindUI:CreateWindow({
+    Title         = "CHITO Hub | Sailor Piece",
+    Folder        = "CHITO-SailorPiece",
+    Icon          = "mynamespace:Chito",
+    IconSize      = 22*2,
+    NewElements   = true,
+    HideSearchBar = false,
+    Theme = "Mellowsi",
+    Author = "by onlyoneflaw",
+    Size = UDim2.fromOffset(900, 900),
+    OpenButton    = {
+        Title           = "CHITO Hub",
+        CornerRadius    = UDim.new(1, 0),
+        StrokeThickness = 3,
+        Enabled         = true,
+        Draggable       = true,
+        OnlyMobile      = false,
+        Color           = ColorSequence.new(Color3.fromHex("#30FF6A"), Color3.fromHex("#e7ff2f")),
+    },
+    Topbar = { Height = 44, ButtonsType = "Default" },
+})
+
+Window:Tag({ Title = "v2.0.0", Icon = "bird", Color = Color3.fromHex("#1c1c1c"), Border = true })
+
+-- ─────────────────────────────────────────────
+-- SECTION: Main
+-- ─────────────────────────────────────────────
+local MainSection = Window:Section({ Title = "Main", Opened = true })
+
+-- ══════════════════════════════════════════════
+-- Tab: Combat
+-- ══════════════════════════════════════════════
+local CombatTab = MainSection:Tab({
+    Title  = "Combat",
+    Icon   = "lucide:sword",
+    Border = true,
+})
+
+
+-- ── Auto Attack ──────────────────────────────
+CombatTab:Section({ Title = "Auto Attack" })
+
+-- 1. Mob dropdown  (no bosses, no Training Dummy)
+CombatTab:Dropdown({
+    Flag     = "MobSelect",
+    Title    = "Select Mob",
+    Desc     = "Regular mobs to farm",
+    Values   = mobDropdownOptions,
+    Value    = nil,
+    Callback = function(value)
+        selectedMobGroup = value or nil
     end,
 })
 
-Tab:CreateToggle({
-    Name = "Auto Attack",
-    CurrentValue = false,
-    Flag = "AutoAttack",
+CombatTab:Space()
+
+-- 2. Boss dropdown  (all 21 bosses; auto first, then manual)
+CombatTab:Dropdown({
+    Flag     = "BossSelect",
+    Title    = "Select Bosses",
+    Values   = bossDropdownOptions,
+    Multi    = true,
+    Value    = {},
     Callback = function(value)
-        attackEnabled = value
-        if not attackEnabled then return end
+        -- value is a table of selected labels (multi-select)
+        selectedBossKeys = {}
+        if type(value) == "table" then
+            for _, label in ipairs(value) do
+                local key = bossLabelToKey[label]
+                if key then table.insert(selectedBossKeys, key) end
+            end
+        elseif type(value) == "string" then
+            -- fallback if library passes string
+            local key = bossLabelToKey[value]
+            if key then selectedBossKeys = {key} end
+        end
+    end,
+})
 
-        task.spawn(function()
-            while attackEnabled do
-                local targets = getTargetNPCs()
-                if #targets == 0 then task.wait(0.5) continue end
 
-                for _, npc in ipairs(targets) do
-                    if not attackEnabled then break end
-                    if not isNPCValid(npc) then continue end
-                    if not isNPCAlive(npc) then continue end
 
-                    -- ── GATE 1: Try to get NPC position ──────────────────────────────
-                    -- If nil, the NPC's parts aren't loaded on this island.
-                    -- DO NOT touch it — wait for teleport instead.
-                    local npcPos = getNPCPosition(npc)
+CombatTab:Dropdown({
+    Flag     = "PityBossSelect",
+    Title    = "Pity Boss",
+    Desc     = "Choose a boss then enable Pity Farm below.",
+    Values   = pityBossOptions,
+    Value    = "(None)",
+    Callback = function(value)
+        if not value or value == "(None)" then
+            selectedPityBoss = nil
+        else
+            selectedPityBoss = bossLabelToKey[value] or nil
+        end
+    end,
+})
 
-                    local root = getPlayerRoot()
-                    if not root then continue end
+CombatTab:Space()
 
-                    -- ── GATE 2: Distance check ────────────────────────────────────────
-                    -- If we can't read the position OR it's > 400 studs → teleport flow
-                    local dist = npcPos and (root.Position - npcPos).Magnitude or math.huge
 
-                    if dist > 400 then
-                        -- npcPos may be nil if NPC parts aren't loaded on this island.
-                        -- In that case, figure out the target island from the group name
-                        -- using the pre-cached crystal positions — no live NPC reads needed.
-                        local posForIsland = npcPos
+local toolDropdownRef = CombatTab:Dropdown({
+    Flag     = "ToolSelect",
+    Title    = "Tool",
+    Desc     = "Auto-equip this tool during autofarm.",
+    Values   = getBackpackTools(),
+    Value    = nil,
+    Callback = function(value)
+        selectedTool = value or nil
+    end,
+})
 
-                        if not posForIsland then
-                            -- Find which island this group belongs to by checking
-                            -- which island crystal is closest to the NPC's expected island.
-                            -- We do this by matching the NPC name to a known island key.
-                            local npcName = npc.Name:lower()
-                            local bestIsland = nil
+-- Refresh tool list when backpack changes
+LocalPlayer.Backpack.ChildAdded:Connect(function()
+    task.wait(0.1)
+    pcall(function() toolDropdownRef:Refresh(getBackpackTools()) end)
+end)
+LocalPlayer.Backpack.ChildRemoved:Connect(function()
+    task.wait(0.1)
+    pcall(function() toolDropdownRef:Refresh(getBackpackTools()) end)
+end)
 
-                            -- Direct name-to-island hints based on NPC naming convention
-                            local nameHints = {
-                                academy    = "Academy",
-                                arena      = "Lawless",
-                                curse      = "Shinjuku",
-                                desert     = "Desert",
-                                frost      = "Snow",
-                                hollow     = "Hollow",
-                                monkey     = "Jungle",
-                                ninja      = "Ninja",
-                                quincy     = "Soul",
-                                slime      = "Slime",
-                                sorcerer   = "Shibuya",
-                                strong     = "Shinjuku",
-                                swordsman  = "Judgement",
-                                thief      = "Starter",
-                                training   = "Starter",
-                                gojo       = "Shibuya",
-                                panda      = "Shibuya",
-                                yamato     = "Soul",
-                                sukuna     = "Soul",
-                                aizen      = "Tower",
-                                yuji       = "Tower",
-                                snow       = "Snow",
-                                strongest  = "Ninja",
-                                monkey     = "Jungle",
-                            }
+CombatTab:Space()
 
-                            for hint, island in pairs(nameHints) do
-                                if npcName:find(hint) then
-                                    bestIsland = island
-                                    break
-                                end
-                            end
+-- 3. Boss Priority toggle
+CombatTab:Toggle({
+    Flag  = "BossPriority",
+    Title = "Boss Priority",
+    Desc  = "turn this ON, if you want autofarm to attack Selected Bosses.",
+    Value = false,
+    Callback = function(value)
+        bossPriorityOn = value
+    end,
+})
 
-                            if bestIsland and islandPositions[bestIsland] then
-                                posForIsland = islandPositions[bestIsland]
-                            else
-                                -- Can't determine island at all, skip
-                                print("[CHITO] Cannot determine island for: " .. tostring(npc.Name) .. " — skipping")
-                                task.wait(0.5)
-                                continue
-                            end
-                        end
 
-                        local ready = teleportAndApproach(npc, posForIsland)
-                        if not ready then task.wait(1) continue end
-                    end
 
-                    -- ── ATTACK LOOP ───────────────────────────────────────────────────
-					while attackEnabled and isNPCValid(npc) and isNPCAlive(npc) do
-						local root = getPlayerRoot()
+CombatTab:Slider({
+    Flag    = "BossHPThreshold",
+    Title   = "Boss HP Threshold",
+    Desc    = "Stop attacking boss on % dealt damage",
+    IsTooltip = true,
+    isTextBox = false,
+    Step    = 1,
+    Width   = 175,
+    Value   = {
+        Min     = 1,
+        Max     = 100,
+        Default = 100,
+    },
+    Callback = function(value)
+        local num = tonumber(value)
+        bossHPThreshold = (num and num >= 1 and num <= 100) and num or 100
+        print("[Threshold] Set to: " .. tostring(bossHPThreshold) .. "%")
+    end,
+})
 
-						-- Death recovery mid-combat
-						if not root then
-							print("[CHITO] Died mid-combat, waiting for respawn...")
-							task.wait(1)
-							local respawnDeadline = tick() + 6
-							while tick() < respawnDeadline do
-								root = getPlayerRoot()
-								if root then
-									print("[CHITO] Respawned, re-approaching...")
-									break
-								end
-								task.wait(0.5)
-							end
-							if not root then break end
-							-- After respawn, tween back toward NPC
-							local pos = getNPCPosition(npc)
-							if not pos then break end
-							tweenTowards(pos)
-							continue
-						end
+-- Pity Farm toggle
+CombatTab:Toggle({
+    Flag  = "PityFarm",
+    Title = "Pity Farm",
+    Desc  = "Enable this to make Auto Farm target the Pity Boss at 24/25. Requires Auto Farm to be ON.",
+    Value = false,
+    Callback = function(value)
+        pityFarmEnabled = value
+        -- No standalone loop — Auto Farm reads pityFarmEnabled as a modifier flag.
+        -- Just notify the user if Auto Farm isn't running.
+        if pityFarmEnabled and not autoFarmEnabled then
+            WindUI:Notify({
+                Title    = "Pity Farm",
+                Content  = "Pity Farm is ON. Enable Auto Farm to start farming.",
+                Icon     = "info",
+                Duration = 5,
+            })
+        end
+        if not pityFarmEnabled then
+            pityBossWatching = false
+        end
+    end,
+})
 
-						local pos = getNPCPosition(npc)
-						if not pos then task.wait(0.5) break end
+CombatTab:Space()
+CombatTab:Space()
+CombatTab:Space()
 
-						local d = (root.Position - pos).Magnitude
-						if d > 250 then
-							tweenTowards(pos)
-							continue
-						end
-
-						pcall(function()
-							RequestHit:FireServer(Vector3.new(pos.X, pos.Y, pos.Z))
-						end)
-						task.wait(0.35)
-					end
+CombatTab:Toggle({
+    Flag  = "AutoFarm",
+    Title = "Auto Farm",
+    Desc  = "Start / stop the auto farm loop",
+    Value = false,
+    Callback = function(value)
+        autoFarmEnabled = value
+        if autoFarmEnabled then
+            farmSession = farmSession + 1
+            local mySession = farmSession
+            setNoclip(true)
+            equipTool(selectedTool)
+            startToolWatcher()
+            task.spawn(function() runAutoFarm(mySession) end)
+        else
+            -- Zero momentum before destroying BodyMovers
+            local char = LocalPlayer.Character
+            if char then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.Velocity = Vector3.zero
                 end
+            end
+            stopHover()
+            setNoclip(false)
+            if activeTween then pcall(function() activeTween:Cancel() end); activeTween = nil end
+        end
+    end,
+})
+
+CombatTab:Space()
+
+-- ── Killaura ─────────────────────────────────
+CombatTab:Section({ Title = "Killaura" })
+
+CombatTab:Toggle({
+    Flag  = "MobAura",
+    Title = "Mob Aura",
+    Desc  = "Attacks all NPCs within 200 studs",
+    Value = false,
+    Callback = function(value)
+        mobAuraEnabled = value
+        if not mobAuraEnabled then return end
+        task.spawn(function()
+            while mobAuraEnabled do
+                local root = getPlayerRoot()
+                if root then
+                    local ok, children = pcall(function() return workspace.NPCs:GetChildren() end)
+                    if ok then
+                        for _, npc in ipairs(children) do
+                            if not mobAuraEnabled then break end
+                            if not isNPCAlive(npc) then continue end
+                            if table.find(whitelistedMobs, npc.Name) then continue end
+                            local pos = getNPCPosition(npc)
+                            if pos and (root.Position - pos).Magnitude <= 200 then fireHit(pos) end
+                        end
+                    end
+                end
+                task.wait(0.35)
             end
         end)
     end,
 })
 
-Tab:CreateParagraph({
-    Title = "Info",
-    Content = "Auto Attack checks if the mob is within 400 studs before doing anything. If not, it teleports to the mob's island, verifies arrival, tweens close, then attacks.",
-})
+CombatTab:Space()
 
--- ─────────────────────────────────────────────
--- Quest Tab
--- ─────────────────────────────────────────────
-local questNPCOptions = {
-    "QuestNPC1",  "QuestNPC2",  "QuestNPC3",  "QuestNPC4",  "QuestNPC5",
-    "QuestNPC6",  "QuestNPC7",  "QuestNPC8",  "QuestNPC9",  "QuestNPC10",
-    "QuestNPC11", "QuestNPC12", "QuestNPC13", "QuestNPC14", "QuestNPC15",
-    "QuestNPC16", "QuestNPC17", "QuestNPC18", "QuestNPC19",
-}
-
-local selectedQuestNPC = "QuestNPC1"
-
-Tab:CreateDropdown({
-    Name = "Select Quest NPC",
-    Options = questNPCOptions,
-    CurrentOption = {"QuestNPC1"},
-    MultipleOptions = false,
-    Flag = "QuestNPCDropdown",
-    Callback = function(selected)
-        selectedQuestNPC = (selected and selected[1]) or "QuestNPC1"
+CombatTab:Toggle({
+    Flag  = "PlayerAura",
+    Title = "Player Aura",
+    Desc  = "Attacks players within 200 studs (respects whitelist)",
+    Value = false,
+    Callback = function(value)
+        playerAuraEnabled = value
+        if not playerAuraEnabled then return end
+        task.spawn(function()
+            while playerAuraEnabled do
+                local root = getPlayerRoot()
+                if root then
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if not playerAuraEnabled then break end
+                        if player == LocalPlayer then continue end
+                        if table.find(whitelistedPlayers, player.Name) then continue end
+                        local ok, targetRoot = pcall(function()
+                            local char = player.Character
+                            return char and char:FindFirstChild("HumanoidRootPart")
+                        end)
+                        if not ok or not targetRoot then continue end
+                        local ok2, alive = pcall(function()
+                            local h = player.Character:FindFirstChildOfClass("Humanoid")
+                            return h and h.Health > 0
+                        end)
+                        if not ok2 or not alive then continue end
+                        if (root.Position - targetRoot.Position).Magnitude <= 200 then
+                            fireHit(targetRoot.Position)
+                        end
+                    end
+                end
+                task.wait(0.35)
+            end
+        end)
     end,
 })
 
-Tab:CreateToggle({
-    Name = "Auto Quest",
-    CurrentValue = false,
-    Flag = "AutoQuest",
+-- ── Quest ─────────────────────────────────────
+CombatTab:Section({ Title = "Quest" })
+
+local questNPCOptions = {}
+for i = 1, 19 do table.insert(questNPCOptions, "QuestNPC" .. i) end
+local selectedQuestNPC = "QuestNPC1"
+
+CombatTab:Dropdown({
+    Flag     = "QuestNPCSelect",
+    Title    = "Quest NPC",
+    Values   = questNPCOptions,
+    Value    = "QuestNPC1",
+    Callback = function(value)
+        selectedQuestNPC = value or "QuestNPC1"
+    end,
+})
+
+CombatTab:Space()
+
+CombatTab:Toggle({
+    Flag  = "AutoQuest",
+    Title = "Auto Quest",
+    Desc  = "Automatically accepts quests from the selected NPC",
+    Value = false,
     Callback = function(value)
         autoQuestEnabled = value
         if not autoQuestEnabled then return end
@@ -578,127 +2077,607 @@ Tab:CreateToggle({
     end,
 })
 
-Tab:CreateLabel("Automatically scans & attacks if target is within range", 4483362458, Color3.fromRGB(255, 255, 255), false)
+
+CombatTab:Button({
+    Title = "Auto Dungeon Quest",
+    Icon  = "map",
+    Callback = function()
+        task.spawn(runAutoDungeonQuest)
+    end,
+})
+
+CombatTab:Button({
+    Title = "Auto Slime Quest",
+    Icon  = "map",
+    Callback = function()
+        task.spawn(runAutoSlimeQuest)
+    end,
+})
+
+CombatTab:Button({
+    Title = "Auto Hogyoku Fragment Quest",
+    Icon  = "map",
+    Callback = function()
+        task.spawn(runAutoHogyokuQuest)
+    end,
+})
+
+CombatTab:Button({
+    Title = "Auto Demonite Quest",
+    Icon  = "map",
+    Callback = function()
+        task.spawn(runAutoDemoniteQuest)
+    end,
+})
+
+CombatTab:Select()
+
+
+-- ══════════════════════════════════════════════
+-- Tab: Boss
+-- ══════════════════════════════════════════════
+local BossTab = MainSection:Tab({
+    Title  = "Boss",
+    Icon   = "lucide:skull",
+    Border = true,
+})
 
 -- ─────────────────────────────────────────────
--- Mob Aura
+-- Boss Spawn Remotes & Config
 -- ─────────────────────────────────────────────
-local mobAuraEnabled = false
+local RequestSummonBoss         = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("RequestSummonBoss")
+local RequestSpawnStrongestBoss = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("RequestSpawnStrongestBoss")
 
-Tab:CreateToggle({
-    Name = "Mob Aura",
-    CurrentValue = false,
-    Flag = "MobAura",
+local DEDICATED_SPAWN_REMOTES = {
+    AtomicBoss    = ReplicatedStorage.RemoteEvents:WaitForChild("RequestSpawnAtomic"),
+    GreatMageBoss = ReplicatedStorage.RemoteEvents:WaitForChild("RequestSpawnGreatMage"),
+    RimuruBoss    = ReplicatedStorage.RemoteEvents:WaitForChild("RequestSpawnRimuru"),
+    TrueAizenBoss = ReplicatedStorage.RemoteEvents:WaitForChild("RequestSpawnTrueAizen"),
+    AnosBoss      = ReplicatedStorage.Remotes:WaitForChild("RequestSpawnAnosBoss"),
+}
+
+local STRONGEST_BOSS_ARGS = {
+    StrongestinHistoryBoss = "StrongestHistory",
+    StrongestofTodayBoss   = "StrongestToday",
+}
+
+-- Only manual bosses belong in this tab (auto-spawned don't need summoning)
+local SPAWNABLE_BOSSES = {}
+for _, cfg in ipairs(BOSS_CONFIG) do
+    if cfg.spawnType == "manual" then
+        table.insert(SPAWNABLE_BOSSES, cfg)
+    end
+end
+
+-- Dropdown labels (clean names, no [Auto]/[Manual] prefix)
+local bossSpawnLabels = {}
+for _, cfg in ipairs(SPAWNABLE_BOSSES) do
+    table.insert(bossSpawnLabels, cfg.display)
+end
+
+-- Reverse lookup: display -> cfg
+local bossSpawnDisplayToKey = {}
+for _, cfg in ipairs(SPAWNABLE_BOSSES) do
+    bossSpawnDisplayToKey[cfg.display] = cfg
+end
+
+-- ─────────────────────────────────────────────
+-- State
+-- ─────────────────────────────────────────────
+local selectedSpawnBosses  = {}   -- list of cfg entries (multi-select)
+local selectedDifficulty   = "Normal"
+local autoSpawnEnabled     = false
+local autoSpawnConnection  = nil
+
+-- ─────────────────────────────────────────────
+-- Spawn Helpers
+-- ─────────────────────────────────────────────
+local function isBossAlive(cfg)
+    local ok, children = pcall(function() return workspace.NPCs:GetChildren() end)
+    if not ok then return false end
+    for _, child in ipairs(children) do
+        local bossId = child:GetAttribute("BossId")
+        if (bossId == cfg.npcName or child.Name:find("^" .. cfg.npcName)) and isNPCAlive(child) then
+            return true
+        end
+    end
+    return false
+end
+
+local function spawnBoss(cfg, difficulty)
+    local strongestArg = STRONGEST_BOSS_ARGS[cfg.npcName]
+    if strongestArg then
+        pcall(function() RequestSpawnStrongestBoss:FireServer(strongestArg, difficulty) end)
+        print(string.format("[BossSpawn] Fired RequestSpawnStrongestBoss for %s (%s) | difficulty: %s", cfg.display, strongestArg, difficulty))
+        return
+    end
+
+    local dedicated = DEDICATED_SPAWN_REMOTES[cfg.npcName]
+    if dedicated then
+        pcall(function() dedicated:FireServer(difficulty) end)
+        print(string.format("[BossSpawn] Fired dedicated remote for %s | difficulty: %s", cfg.display, difficulty))
+        return
+    end
+
+    pcall(function() RequestSummonBoss:FireServer(cfg.npcName, difficulty) end)
+    print(string.format("[BossSpawn] Fired RequestSummonBoss for %s | difficulty: %s", cfg.display, difficulty))
+end
+
+local function runAutoSpawn()
+    print("[AutoSpawn] Started")
+    local watchedBosses = {}  -- npcName -> true (currently being watched, don't re-trigger)
+
+    local function watchAndRespawn(cfg)
+        if watchedBosses[cfg.npcName] then return end
+
+        -- Find the live NPC
+        local ok, children = pcall(function() return workspace.NPCs:GetChildren() end)
+        if not ok then return end
+
+        local liveNPC = nil
+        for _, child in ipairs(children) do
+            local bossId = child:GetAttribute("BossId")
+            if (bossId == cfg.npcName or child.Name:find("^" .. cfg.npcName)) and isNPCAlive(child) then
+                liveNPC = child
+                break
+            end
+        end
+        if not liveNPC then return end
+
+        local humanoid = liveNPC:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+
+        watchedBosses[cfg.npcName] = true
+        print(string.format("[AutoSpawn] Watching %s for death...", cfg.display))
+
+        humanoid.Died:Connect(function()
+            if not autoSpawnEnabled then
+                watchedBosses[cfg.npcName] = nil
+                return
+            end
+            print(string.format("[AutoSpawn] %s died — respawning in 3s...", cfg.display))
+            task.wait(3)
+            if not autoSpawnEnabled then
+                watchedBosses[cfg.npcName] = nil
+                return
+            end
+            -- Small offset per boss to avoid simultaneous remote spam
+            local spawnOffset = 0
+            for i, c in ipairs(selectedSpawnBosses) do
+                if c.npcName == cfg.npcName then
+                    spawnOffset = (i - 1) * 1.5  -- 1.5s gap between each boss
+                    break
+                end
+            end
+            if spawnOffset > 0 then
+                task.wait(spawnOffset)
+            end
+            if not autoSpawnEnabled then watchedBosses[cfg.npcName] = nil; return end
+
+            -- Spam remote until boss appears
+            local deadline = tick() + 5
+            repeat
+                spawnBoss(cfg, selectedDifficulty)
+                task.wait(0.3)
+            until isBossAlive(cfg) or tick() > deadline or not autoSpawnEnabled
+            watchedBosses[cfg.npcName] = nil  -- clear so we can re-watch the new instance
+        end)
+    end
+
+    -- Initial spawn pass: if boss isn't alive yet, spawn it first
+    for _, cfg in ipairs(selectedSpawnBosses) do
+        if not isBossAlive(cfg) then
+            print(string.format("[AutoSpawn] %s not alive — initial spawn...", cfg.display))
+            local deadline = tick() + 5
+            repeat
+                spawnBoss(cfg, selectedDifficulty)
+                task.wait(0.3)
+            until isBossAlive(cfg) or tick() > deadline or not autoSpawnEnabled
+        end
+    end
+
+    -- Main loop: just attaches death watchers, no polling spam
+    while autoSpawnEnabled do
+        for _, cfg in ipairs(selectedSpawnBosses) do
+            if not autoSpawnEnabled then break end
+            if isBossAlive(cfg) and not watchedBosses[cfg.npcName] then
+                watchAndRespawn(cfg)
+            end
+        end
+        task.wait(1)  -- light poll just to catch newly alive bosses and attach watchers
+    end
+
+    watchedBosses = {}
+    print("[AutoSpawn] Stopped")
+end
+
+-- ─────────────────────────────────────────────
+-- Boss Tab UI
+-- ─────────────────────────────────────────────
+BossTab:Section({ Title = "Spawn Boss" })
+
+-- Difficulty dropdown (above boss list)
+BossTab:Dropdown({
+    Flag     = "BossSpawnDifficulty",
+    Title    = "Difficulty",
+    Desc     = "Applied to all spawned bosses",
+    Values   = { "Normal", "Medium", "Hard", "Extreme" },
+    Value    = "Normal",
     Callback = function(value)
-        mobAuraEnabled = value
-        if not mobAuraEnabled then return end
-        task.spawn(function()
-            while mobAuraEnabled do
-                local root = getPlayerRoot()
-                if root then
-                    local ok, children = pcall(function() return workspace.NPCs:GetChildren() end)
-                    if ok then
-                        for _, npc in ipairs(children) do
-                            if not mobAuraEnabled then break end
-                            if not isNPCValid(npc) or not isNPCAlive(npc) then continue end
-							if table.find(whitelistedMobs, npc.Name) then continue end
-                            local pos = getNPCPosition(npc)
-                            if pos and (root.Position - pos).Magnitude <= 200 then
-                                pcall(function()
-                                    RequestHit:FireServer(Vector3.new(pos.X, pos.Y, pos.Z))
-                                end)
+        selectedDifficulty = value or "Normal"
+    end,
+})
+
+BossTab:Space()
+
+-- Boss multi-select dropdown
+BossTab:Dropdown({
+    Flag     = "BossSpawnSelect",
+    Title    = "Select Bosses",
+    Desc     = "Choose one or more bosses to spawn / auto-spawn",
+    Values   = bossSpawnLabels,
+    Multi    = true,
+    Value    = {},
+    Callback = function(value)
+        selectedSpawnBosses = {}
+        if type(value) == "table" then
+            for _, label in ipairs(value) do
+                local cfg = bossSpawnDisplayToKey[label]
+                if cfg then table.insert(selectedSpawnBosses, cfg) end
+            end
+        elseif type(value) == "string" and value ~= "" then
+            local cfg = bossSpawnDisplayToKey[value]
+            if cfg then selectedSpawnBosses = { cfg } end
+        end
+    end,
+})
+
+BossTab:Space()
+
+-- Manual spawn button
+BossTab:Button({
+    Title    = "Spawn Selected",
+    Icon     = "lucide:zap",
+    Justify  = "Center",
+    Callback = function()
+        if #selectedSpawnBosses == 0 then
+            WindUI:Notify({ Title = "Boss Spawn", Content = "No boss selected.", Icon = "x", Duration = 3 })
+            return
+        end
+        for _, cfg in ipairs(selectedSpawnBosses) do
+            spawnBoss(cfg, selectedDifficulty)
+            task.wait(0.4)
+        end
+        WindUI:Notify({
+            Title   = "Boss Spawn",
+            Content = "Spawn fired for " .. #selectedSpawnBosses .. " boss(es) | " .. selectedDifficulty,
+            Icon    = "check",
+            Duration = 4,
+        })
+    end,
+})
+
+BossTab:Space()
+BossTab:Space()
+
+BossTab:Section({ Title = "Auto Spawn" })
+
+BossTab:Toggle({
+    Flag  = "AutoSpawn",
+    Title = "Auto Spawn",
+    Desc  = "Automatically re-spawns selected bosses when they're not in the world",
+    Value = false,
+    Callback = function(value)
+        autoSpawnEnabled = value
+        if autoSpawnEnabled then
+            if #selectedSpawnBosses == 0 then
+                WindUI:Notify({ Title = "Auto Spawn", Content = "Select at least one boss first.", Icon = "x", Duration = 4 })
+                autoSpawnEnabled = false
+                return
+            end
+            task.spawn(runAutoSpawn)
+        else
+            WindUI:Notify({ Title = "Auto Spawn", Content = "Auto Spawn stopped.", Icon = "info", Duration = 3 })
+        end
+    end,
+})
+
+
+local autoSpawnPityEnabled = false
+
+BossTab:Toggle({
+    Flag  = "AutoSpawnPityBoss",
+    Title = "Auto Spawn Pity Boss",
+    Desc  = "At 24/25 pity, automatically spawns your selected Pity Boss if it's not alive",
+    Value = false,
+    Callback = function(value)
+        autoSpawnPityEnabled = value
+        if autoSpawnPityEnabled then
+            task.spawn(function()
+                while autoSpawnPityEnabled do
+                    -- Only act at 24/25
+                    if currentPity ~= nil and currentPity >= 24 and selectedPityBoss then
+                        local cfg = BOSS_MAP[selectedPityBoss]
+                        if cfg and not isBossAlive(cfg) then
+                            print(string.format("[PitySpawn] 24/25 — %s not alive, spawning...", cfg.display))
+                            local deadline = tick() + 5
+                            repeat
+                                spawnBoss(cfg, selectedDifficulty)
+                                task.wait(0.3)
+                            until isBossAlive(cfg) or tick() > deadline or not autoSpawnPityEnabled
+                            if isBossAlive(cfg) then
+                                print(string.format("[PitySpawn] %s is alive!", cfg.display))
+                                WindUI:Notify({
+                                    Title    = "Pity Spawn",
+                                    Content  = cfg.display .. " spawned at 24/25!",
+                                    Icon     = "star",
+                                    Duration = 4,
+                                })
                             end
                         end
                     end
+                    task.wait(0.5)
                 end
-                task.wait(0.35)
-            end
-        end)
+                print("[PitySpawn] Stopped")
+            end)
+        end
     end,
 })
 
--- ─────────────────────────────────────────────
--- Player Aura
--- ─────────────────────────────────────────────
-local playerAuraEnabled = false
 
-Tab:CreateToggle({
-    Name = "Player Aura",
-    CurrentValue = false,
-    Flag = "PlayerAura",
+-- ══════════════════════════════════════════════
+-- Tab: Merchant
+-- ══════════════════════════════════════════════
+local MerchantTab = MainSection:Tab({
+    Title  = "Merchant",
+    Icon   = "solar:shop-bold-duotone",
+    Border = true,
+})
+
+-- ─────────────────────────────────────────────
+-- Merchant Helpers
+-- ─────────────────────────────────────────────
+local function getPlayerMoney()
+    local ok, val = pcall(function() return LocalPlayer.Data.Money.Value end)
+    return (ok and type(val) == "number") and val or 0
+end
+
+local function getPlayerGems()
+    local ok, val = pcall(function() return LocalPlayer.Data.Gems.Value end)
+    return (ok and type(val) == "number") and val or 0
+end
+
+local function fetchStock()
+    local ok, result = pcall(function() return GetMerchantStock:InvokeServer() end)
+    if ok and type(result) == "table" and type(result.stock) == "table" then
+        merchantStock = result.stock
+        return true
+    end
+    return false
+end
+
+local function getStockDropdownOptions()
+    local opts = {}
+    for itemName in pairs(merchantStock) do
+        table.insert(opts, itemName)
+    end
+    table.sort(opts)
+    return opts
+end
+
+local function tryBuyItem(itemName, itemData)
+    local currency  = itemData.currency or "Gems"
+    local price     = itemData.price    or 0
+    local stock     = itemData.stock    or 0
+
+    if stock <= 0 or price <= 0 then return end
+
+    local balance   = (currency == "Gems") and getPlayerGems() or getPlayerMoney()
+    local threshold = (currency == "Gems") and gemThreshold    or moneyThreshold
+
+    local spendable = balance - threshold
+    if spendable <= 0 then
+        print(string.format("[Merchant] %s below threshold — skipping %s (have %.0f, threshold %.0f)",
+            currency, itemName, balance, threshold))
+        return
+    end
+
+    local canAfford = math.floor(spendable / price)
+    local toBuy     = math.min(canAfford, stock)
+
+    if toBuy <= 0 then
+        print(string.format("[Merchant] Can't afford %s (price %.0f %s, spendable %.0f)",
+            itemName, price, currency, spendable))
+        return
+    end
+
+    print(string.format("[Merchant] Buying %dx %s (%.0f %s each)", toBuy, itemName, price, currency))
+    for i = 1, toBuy do
+        if not autoMerchantEnabled then break end
+        pcall(function() PurchaseMerchant:InvokeServer(itemName, 1) end)
+        task.wait(0.4)
+    end
+end
+
+local MERCHANT_REFRESH_INTERVAL = 31 * 60  -- 31 minutes in seconds
+
+local function runAutoMerchant()
+    local lastItemSnapshot = {}
+
+    local function itemsChanged()
+		for _, v in ipairs(selectedMerchantItems) do
+			if not table.find(lastItemSnapshot, v) then return true end
+		end
+		return false
+	end
+
+    local function snapshotItems()
+        lastItemSnapshot = {}
+        for _, v in ipairs(selectedMerchantItems) do
+            table.insert(lastItemSnapshot, v)
+        end
+    end
+
+    local function doBuyCycle()
+        print("[Merchant] Fetching stock...")
+        local ok = fetchStock()
+        if ok then
+            WindUI:Notify({ Title = "Merchant", Content = "Buying selected items...", Icon = "check", Duration = 3 })
+            for _, itemName in ipairs(selectedMerchantItems) do
+                if not autoMerchantEnabled then break end
+                local itemData = merchantStock[itemName]
+                if itemData then
+                    tryBuyItem(itemName, itemData)
+                end
+                task.wait(0.3)
+            end
+        else
+            print("[Merchant] Failed to fetch stock.")
+            WindUI:Notify({ Title = "Merchant", Content = "Stock fetch failed, retrying next cycle.", Icon = "x", Duration = 3 })
+        end
+        snapshotItems()
+    end
+
+    -- Initial buy on enable
+    doBuyCycle()
+
+    local waited = 0
+    while autoMerchantEnabled do
+        task.wait(1)
+        waited += 1
+
+        -- New item added mid-wait? Buy immediately (reuse cached stock, re-fetch to be safe)
+        if itemsChanged() then
+            print("[Merchant] Item selection changed, triggering buy cycle...")
+            WindUI:Notify({ Title = "Merchant", Content = "New item detected, buying now...", Icon = "shopping-cart", Duration = 3 })
+            doBuyCycle()
+            waited = 0  -- reset the 31-min timer after a triggered cycle
+        end
+
+        if waited % 300 == 0 and waited > 0 then
+            local remaining = math.floor((MERCHANT_REFRESH_INTERVAL - waited) / 60)
+            print(string.format("[Merchant] Next refresh in %d min...", remaining))
+        end
+
+        if waited >= MERCHANT_REFRESH_INTERVAL then
+            print("[Merchant] 31 minutes elapsed, refreshing stock...")
+            doBuyCycle()
+            waited = 0
+        end
+    end
+
+    print("[Merchant] Auto Buy stopped.")
+end
+
+-- ─────────────────────────────────────────────
+-- Merchant UI
+-- ─────────────────────────────────────────────
+MerchantTab:Section({ Title = "Stock" })
+
+desiredItemsDropdown = MerchantTab:Dropdown({
+    Flag     = "MerchantDesiredItems",
+    Title    = "Desired Items",
+    Desc     = "Select items to buy, then enable Auto Buy",
+    Values   = MERCHANT_ITEMS,
+    Multi    = true,
+    Value    = {},
     Callback = function(value)
-        playerAuraEnabled = value
-        if not playerAuraEnabled then return end
-        task.spawn(function()
-            while playerAuraEnabled do
-                local root = getPlayerRoot()
-                if root then
-                    for _, player in ipairs(Players:GetPlayers()) do
-                        if not playerAuraEnabled then break end
-                        if player == LocalPlayer then continue end
-						if table.find(whitelistedPlayers, player.Name) then continue end
-                        local ok, targetRoot = pcall(function()
-                            local char = player.Character
-                            return char and char:FindFirstChild("HumanoidRootPart")
-                        end)
-                        if not ok or not targetRoot then continue end
-                        local ok2, alive = pcall(function()
-                            local h = player.Character:FindFirstChildOfClass("Humanoid")
-                            return h and h.Health > 0
-                        end)
-                        if not ok2 or not alive then continue end
-                        if (root.Position - targetRoot.Position).Magnitude <= 200 then
-                            pcall(function()
-                                local pos = targetRoot.Position
-                                RequestHit:FireServer(Vector3.new(pos.X, pos.Y, pos.Z))
-                            end)
-                        end
-                    end
-                end
-                task.wait(0.35)
-            end
-        end)
+        selectedMerchantItems = {}
+        if type(value) == "table" then
+            for _, v in ipairs(value) do table.insert(selectedMerchantItems, v) end
+        elseif type(value) == "string" and value ~= "" then
+            selectedMerchantItems = { value }
+        end
     end,
 })
 
--- ─────────────────────────────────────────────
--- Stats Tab
--- ─────────────────────────────────────────────
-local StatsTab = Window:CreateTab("Stats", nil)
+MerchantTab:Space()
+
+MerchantTab:Input({
+    Flag        = "MoneyThreshold",
+    Title       = "Money Threshold",
+    Desc        = "Minimum Money to always keep",
+    Value       = "0",
+    Placeholder = "e.g. 100000",
+    Callback    = function(value)
+        local num = tonumber(value)
+        moneyThreshold = (num and num >= 0) and math.floor(num) or 0
+    end,
+})
+
+MerchantTab:Space()
+
+MerchantTab:Input({
+    Flag        = "GemThreshold",
+    Title       = "Gem Threshold",
+    Desc        = "Minimum Gems to always keep",
+    Value       = "0",
+    Placeholder = "e.g. 100000",
+    Callback    = function(value)
+        local num = tonumber(value)
+        gemThreshold = (num and num >= 0) and math.floor(num) or 0
+    end,
+})
+
+MerchantTab:Space()
+
+MerchantTab:Toggle({
+    Flag  = "AutoMerchant",
+    Title = "Auto Buy",
+    Desc  = "Fetches stock immediately, buys selected items, repeats every 31 min",
+    Value = false,
+    Callback = function(value)
+        autoMerchantEnabled = value
+        if autoMerchantEnabled then
+            task.spawn(runAutoMerchant)
+        end
+    end,
+})
+
+-- ══════════════════════════════════════════════
+-- Tab: Stats
+-- ══════════════════════════════════════════════
+local StatsTab = MainSection:Tab({
+    Title  = "Stats",
+    Icon   = "solar:chart-bold-duotone",
+    Border = true,
+})
+
+StatsTab:Section({ Title = "Auto Stat" })
 
 local selectedStat    = "Melee"
 local statAmount      = 1
 local autoStatEnabled = false
 
-StatsTab:CreateDropdown({
-    Name = "Stat",
-    Options = {"Melee", "Defense", "Sword", "Power"},
-    CurrentOption = {"Melee"},
-    MultipleOptions = false,
-    Flag = "StatDropdown",
-    Callback = function(selected)
-        selectedStat = selected[1] or "Melee"
-    end,
+StatsTab:Dropdown({
+    Flag     = "StatSelect",
+    Title    = "Stat",
+    Values   = {"Melee", "Defense", "Sword", "Power"},
+    Value    = "Melee",
+    Callback = function(value) selectedStat = value or "Melee" end,
 })
 
-StatsTab:CreateInput({
-    Name = "Amount",
-    CurrentValue = "1",
-    PlaceholderText = "Enter amount",
-    RemoveTextAfterFocusLost = false,
-    Flag = "StatAmount",
-    Callback = function(value)
+StatsTab:Space()
+
+StatsTab:Input({
+    Flag        = "StatAmount",
+    Title       = "Amount",
+    Desc        = "Points to allocate per tick",
+    Value       = "1",
+    Placeholder = "Enter amount",
+    Callback    = function(value)
         local num = tonumber(value)
-        if num and num > 0 then
-            statAmount = math.floor(num)
-        end
+        if num and num > 0 then statAmount = math.floor(num) end
     end,
 })
 
-StatsTab:CreateToggle({
-    Name = "Auto Stat",
-    CurrentValue = false,
-    Flag = "AutoStat",
+StatsTab:Space()
+
+StatsTab:Toggle({
+    Flag  = "AutoStat",
+    Title = "Auto Stat",
+    Desc  = "Continuously allocates stat points",
+    Value = false,
     Callback = function(value)
         autoStatEnabled = value
         if not autoStatEnabled then return end
@@ -711,346 +2690,391 @@ StatsTab:CreateToggle({
     end,
 })
 
--- Create Misc Tab
-local MiscTab = Window:CreateTab("Misc", 4483362458)  -- You can change the icon number if you want
 
--- Optional: Create a section (recommended for organization)
-local MiscSection = MiscTab:CreateSection("Code Redeem")
-
--- Redeem All Codes Button
-local RedeemButton = MiscTab:CreateButton({
-    Name = "Redeem all codes",
-    Callback = function()
-        local codes = {
-            "200MVISITS",
-            "425KCCUYAY",
-            "INSANE410KCCU",
-            "380KCCUSOCRAZY",
-            "365KCCUOP",
-            "350KCCUINSANEE",
-            "335KCCUTYSM",
-            "320KCCUWOW",
-            "SORRYFORMANYRESTARTS",
-            "SORRYFORALLTHEBUGSBUTBETTER",
-            "SORRYFORALLTHEBUGSS",
-            "MASSIVEUPDATE",
-            "INFINITETOWER",
-            "SEA2SOON",
-            "175KFOLLOWSTYSM",
-            "150MVISITS",
-            "290KCCUSOMUCH",
-            "305KCCUTYSMGUYS",
-            "275KCCUOMG",
-            "260KCCUINSANE",
-            "245KCCUGETTINGTOOCRAZY",
-            "230KCCUYALLTHEBEST",
-            "TYFOR215KCCU",
-            "TYFOR170KCCUWOW",
-            "INSANE180KCCU",
-            "OMG190KCCU",
-            "THEBIG200KCCUTYSM",
-            "EIDMUBARAK",
-            "ALTERUPDATE",
-            "BIGGESTUPDATENEXT",
-            "SMALLDELAYVERYSORRY",
-            "45KFOLLOWSTYY",
-            "HUGEUPDATEW",
-            "3SPECS"
-        }
-
-        Rayfield:Notify({
-            Title = "Redeeming Codes",
-            Content = "Starting to redeem all codes...",
-            Duration = 4,
-            Image = nil
-        })
-
-        for _, code in ipairs(codes) do
-            local args = { code }
-            game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents"):WaitForChild("CodeRedeem"):InvokeServer(unpack(args))
-            
-            wait(0.6)  -- Small delay to prevent rate limiting / detection (you can adjust this)
-        end
-
-        Rayfield:Notify({
-            Title = "Redeem Finished",
-            Content = "All codes have been attempted.",
-            Duration = 6,
-            Image = nil
-        })
-    end
+-- ══════════════════════════════════════════════
+-- Tab: Islands
+-- ══════════════════════════════════════════════
+local TeleportTab = MainSection:Tab({
+    Title  = "Islands",
+    Icon   = "solar:map-point-bold-duotone",
+    Border = true,
 })
 
--- ─────────────────────────────────────────────
--- Teleport Tab
--- ─────────────────────────────────────────────
-local TeleportTab = Window:CreateTab("Teleport", nil)
+TeleportTab:Section({ Title = "Teleport" })
 
-TeleportTab:CreateSection("Islands")
-
-local islandList = {
-    "Starter", "Jungle", "Desert", "Snow", "Sailor",
-    "Shibuya", "Hollow", "Boss", "Shinjuku", "Slime",
-    "Academy", "Judgement", "Soul", "Ninja", "Lawless", "Tower"
-}
-
-for _, islandName in ipairs(islandList) do
-    TeleportTab:CreateButton({
-        Name = "→ " .. islandName,
+for _, islandName in ipairs(ISLAND_NAMES) do
+    TeleportTab:Button({
+        Title    = "→ " .. islandName,
         Callback = function()
-            local portalName = islandPortalNames[islandName]
-            if portalName then
-                pcall(function() TeleportToPortal:FireServer(portalName) end)
-                task.wait(2)
-                fireCheckpoint(islandName)
-                Rayfield:Notify({
-                    Title = "Teleport",
-                    Content = "Teleported to " .. islandName,
-                    Duration = 3,
-                    Image = nil,
-                })
-            end
+            fireTeleport(islandName)
+            WindUI:Notify({ Title = "Teleport", Content = "Teleported to " .. islandName, Icon = "map-pin", Duration = 3 })
         end,
     })
+    TeleportTab:Space()
 end
 
--- ─────────────────────────────────────────────
--- Whitelist Tab
--- ─────────────────────────────────────────────
-local WhitelistTab = Window:CreateTab("Whitelist", nil)
+local function wlNotify(title, msg, icon)
+    WindUI:Notify({ Title = title, Content = msg, Icon = icon or "info", Duration = 4 })
+end
 
--- ── Player Whitelist Section ──
-WhitelistTab:CreateSection("Player Whitelist")
-
--- Live player dropdown (updated on join/leave)
-local currentPlayerOptions = {}
+-- ══════════════════════════════════════════════
+-- Tab: Whitelist
+-- ══════════════════════════════════════════════
+local function wlNotify(title, msg, icon)
+    WindUI:Notify({ Title = title, Content = msg, Icon = icon or "info", Duration = 4 })
+end
 
 local function getOnlinePlayerNames()
     local names = {}
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer then
-            table.insert(names, p.Name)
-        end
+        if p ~= LocalPlayer then table.insert(names, p.Name) end
     end
     table.sort(names)
     return names
 end
 
--- We'll store a reference to rebuild when roster changes
-local playerDropdownRef = nil
+local mobWLOptions = {}
+for name in pairs(groups) do table.insert(mobWLOptions, name) end
+table.sort(mobWLOptions)
 
-local function rebuildPlayerDropdown()
-    currentPlayerOptions = getOnlinePlayerNames()
-    -- Rayfield doesn't expose a live-refresh API on dropdowns,
-    -- so we recreate the element each time via a wrapper section.
-    -- The simplest pattern is to keep a flag + re-notify the user.
-    if playerDropdownRef then
-        -- Update options if Rayfield supports it on your version
-        pcall(function()
-            playerDropdownRef:Refresh(currentPlayerOptions, true)
-        end)
-    end
-end
+local WhitelistTab = MainSection:Tab({
+    Title  = "Whitelist",
+    Icon   = "solar:shield-check-bold-duotone",
+    Border = true,
+})
+
+-- ── Player Whitelist ──
+WhitelistTab:Section({ Title = "Player Whitelist" })
 
 local selectedWhitelistPlayer = nil
-
-playerDropdownRef = WhitelistTab:CreateDropdown({
-    Name = "Online Players",
-    Options = getOnlinePlayerNames(),
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "WhitelistPlayerDropdown",
-    Callback = function(selected)
-        selectedWhitelistPlayer = (selected and selected[1]) or nil
-    end,
-})
-
--- Auto-refresh dropdown when players join/leave
-Players.PlayerAdded:Connect(function()
-    task.wait(1) -- brief wait so .Name is accessible
-    rebuildPlayerDropdown()
-end)
-
-Players.PlayerRemoving:Connect(function()
-    task.wait(0.1)
-    rebuildPlayerDropdown()
-end)
-
--- Add via dropdown
-WhitelistTab:CreateButton({
-    Name = "Add Selected Player",
-    Callback = function()
-        if selectedWhitelistPlayer and selectedWhitelistPlayer ~= "" then
-            if not table.find(whitelistedPlayers, selectedWhitelistPlayer) then
-                table.insert(whitelistedPlayers, selectedWhitelistPlayer)
-                Rayfield:Notify({
-                    Title = "Whitelist",
-                    Content = selectedWhitelistPlayer .. " added to whitelist.",
-                    Duration = 3,
-                    Image = nil,
-                })
-            else
-                Rayfield:Notify({
-                    Title = "Whitelist",
-                    Content = selectedWhitelistPlayer .. " is already whitelisted.",
-                    Duration = 3,
-                    Image = nil,
-                })
-            end
-        end
-    end,
-})
-
--- Manual input (case sensitive) in case dropdown fails
 local manualPlayerInput = ""
 
-WhitelistTab:CreateInput({
-    Name = "Manual Username (case sensitive)",
-    CurrentValue = "",
-    PlaceholderText = "Enter exact username",
-    RemoveTextAfterFocusLost = false,
-    Flag = "ManualPlayerInput",
-    Callback = function(value)
-        manualPlayerInput = value
-    end,
+local playerDropdownRef = WhitelistTab:Dropdown({
+    Flag     = "WLPlayerSelect",
+    Title    = "Player",
+    Desc     = "Select online player OR type username below",
+    Values   = getOnlinePlayerNames(),
+    Value    = nil,
+    Callback = function(value) selectedWhitelistPlayer = value end,
 })
 
-WhitelistTab:CreateButton({
-    Name = "Add Manual Username",
+Players.PlayerAdded:Connect(function()
+    task.wait(1)
+    pcall(function() playerDropdownRef:Refresh(getOnlinePlayerNames()) end)
+end)
+Players.PlayerRemoving:Connect(function()
+    task.wait(0.1)
+    pcall(function() playerDropdownRef:Refresh(getOnlinePlayerNames()) end)
+end)
+
+WhitelistTab:Input({
+    Flag        = "WLManualInput",
+    Title       = "Manual Username",
+    Desc        = "Overrides dropdown selection if filled",
+    Value       = "",
+    Placeholder = "Exact username",
+    Callback    = function(v) manualPlayerInput = v end,
+})
+
+WhitelistTab:Space()
+
+WhitelistTab:Button({
+    Title = "Add to Whitelist",
+    Icon  = "user-plus",
     Callback = function()
-        if manualPlayerInput and manualPlayerInput ~= "" then
-            if not table.find(whitelistedPlayers, manualPlayerInput) then
-                table.insert(whitelistedPlayers, manualPlayerInput)
-                Rayfield:Notify({
-                    Title = "Whitelist",
-                    Content = manualPlayerInput .. " added to whitelist.",
-                    Duration = 3,
-                    Image = nil,
-                })
-            else
-                Rayfield:Notify({
-                    Title = "Whitelist",
-                    Content = manualPlayerInput .. " already whitelisted.",
-                    Duration = 3,
-                    Image = nil,
-                })
-            end
+        local name = (manualPlayerInput ~= "" and manualPlayerInput) or selectedWhitelistPlayer
+        if not name or name == "" then
+            wlNotify("Whitelist", "No player selected or typed.", "x")
+            return
+        end
+        if table.find(whitelistedPlayers, name) then
+            wlNotify("Whitelist", name .. " already whitelisted.", "info")
+        else
+            table.insert(whitelistedPlayers, name)
+            wlNotify("Whitelist", name .. " added.", "check")
         end
     end,
 })
 
-WhitelistTab:CreateButton({
-    Name = "Remove Selected / Manual Player",
+WhitelistTab:Button({
+    Title = "Remove from Whitelist",
+    Icon  = "user-minus",
     Callback = function()
-        local name = (selectedWhitelistPlayer and selectedWhitelistPlayer ~= "")
-                     and selectedWhitelistPlayer
-                     or manualPlayerInput
-        local idx = name and table.find(whitelistedPlayers, name)
+        local name = (manualPlayerInput ~= "" and manualPlayerInput) or selectedWhitelistPlayer
+        local idx  = name and table.find(whitelistedPlayers, name)
         if idx then
             table.remove(whitelistedPlayers, idx)
-            Rayfield:Notify({
-                Title = "Whitelist",
-                Content = name .. " removed from whitelist.",
-                Duration = 3,
-                Image = nil,
-            })
+            wlNotify("Whitelist", name .. " removed.", "check")
         else
-            Rayfield:Notify({
-                Title = "Whitelist",
-                Content = "Player not found in whitelist.",
-                Duration = 3,
-                Image = nil,
-            })
+            wlNotify("Whitelist", "Player not found in whitelist.", "x")
         end
     end,
 })
 
-WhitelistTab:CreateButton({
-    Name = "Show Whitelisted Players",
+WhitelistTab:Button({
+    Title = "Show Whitelisted Players",
+    Icon  = "list",
     Callback = function()
-        local display = #whitelistedPlayers > 0
-            and table.concat(whitelistedPlayers, ", ")
-            or  "None"
-        Rayfield:Notify({
-            Title = "Whitelisted Players",
-            Content = display,
-            Duration = 8,
-            Image = nil,
-        })
+        local display = #whitelistedPlayers > 0 and table.concat(whitelistedPlayers, ", ") or "None"
+        wlNotify("Whitelisted Players", display, "users")
     end,
 })
 
--- ── Mob Whitelist Section ──
-WhitelistTab:CreateSection("Mob Whitelist")
-
-local mobDropdownOptions = {}
-for name in pairs(groups) do table.insert(mobDropdownOptions, name) end
-table.sort(mobDropdownOptions)
+-- ── Mob Whitelist ──
+WhitelistTab:Section({ Title = "Mob Whitelist" })
 
 local selectedWhitelistMob = nil
 
-WhitelistTab:CreateDropdown({
-    Name = "Select Mob Group",
-    Options = mobDropdownOptions,
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "WhitelistMobDropdown",
-    Callback = function(selected)
-        selectedWhitelistMob = (selected and selected[1]) or nil
-    end,
+WhitelistTab:Dropdown({
+    Flag     = "WLMobSelect",
+    Title    = "Mob Group",
+    Values   = mobWLOptions,
+    Value    = nil,
+    Callback = function(value) selectedWhitelistMob = value end,
 })
 
-WhitelistTab:CreateButton({
-    Name = "Add Mob to Whitelist",
+WhitelistTab:Space()
+
+WhitelistTab:Button({
+    Title = "Add Mob",
+    Icon  = "plus",
     Callback = function()
-        if selectedWhitelistMob and selectedWhitelistMob ~= "" then
-            if not table.find(whitelistedMobs, selectedWhitelistMob) then
-                table.insert(whitelistedMobs, selectedWhitelistMob)
-                Rayfield:Notify({
-                    Title = "Mob Whitelist",
-                    Content = selectedWhitelistMob .. " added.",
-                    Duration = 3,
-                    Image = nil,
-                })
-            else
-                Rayfield:Notify({
-                    Title = "Mob Whitelist",
-                    Content = selectedWhitelistMob .. " already in whitelist.",
-                    Duration = 3,
-                    Image = nil,
-                })
-            end
+        local name = selectedWhitelistMob
+        if not name or name == "" then return end
+        if table.find(whitelistedMobs, name) then
+            wlNotify("Mob Whitelist", name .. " already whitelisted.", "info")
+        else
+            table.insert(whitelistedMobs, name)
+            wlNotify("Mob Whitelist", name .. " added.", "check")
         end
     end,
 })
 
-WhitelistTab:CreateButton({
-    Name = "Remove Mob from Whitelist",
+WhitelistTab:Button({
+    Title = "Remove Mob",
+    Icon  = "minus",
     Callback = function()
         local idx = selectedWhitelistMob and table.find(whitelistedMobs, selectedWhitelistMob)
         if idx then
             table.remove(whitelistedMobs, idx)
-            Rayfield:Notify({
-                Title = "Mob Whitelist",
-                Content = selectedWhitelistMob .. " removed.",
-                Duration = 3,
-                Image = nil,
-            })
+            wlNotify("Mob Whitelist", selectedWhitelistMob .. " removed.", "check")
+        else
+            wlNotify("Mob Whitelist", "Mob not found in whitelist.", "x")
         end
     end,
 })
 
-WhitelistTab:CreateButton({
-    Name = "Show Whitelisted Mobs",
+WhitelistTab:Button({
+    Title = "Show Whitelisted Mobs",
+    Icon  = "list",
     Callback = function()
-        local display = #whitelistedMobs > 0
-            and table.concat(whitelistedMobs, ", ")
-            or  "None"
-        Rayfield:Notify({
-            Title = "Whitelisted Mobs",
-            Content = display,
-            Duration = 8,
-            Image = nil,
-        })
+        local display = #whitelistedMobs > 0 and table.concat(whitelistedMobs, ", ") or "None"
+        wlNotify("Whitelisted Mobs", display, "shield")
     end,
 })
+
+-- ══════════════════════════════════════════════
+-- Tab: Codes
+-- ══════════════════════════════════════════════
+local CodesTab = MainSection:Tab({
+    Title  = "Codes",
+    Icon   = "solar:ticket-bold-duotone",
+    Border = true,
+})
+
+CodesTab:Section({ Title = "Code Redeem" })
+
+local CODES = {
+    "SORRYFORTHESEISSUES",
+    "SORRYFORTRADELOCK",
+    "700KLIKESTYSM",
+    "FREECODE",
+    "500MVISITSWOAHH",
+    "ICEQUEEN",
+    "MINIUPDATEBIGONESOON",
+    "600KLIKESTY",
+    "400MVISITSWOAHH",
+    "500KLIKESTY",
+    "SORRYFORRESTARTONLYONETONIGHTT",
+    "BIGGESTUPDATESEA2NEXT",
+    "BIGGESTUPDATENEXT",
+    "TYFOR115KFOLLOW",
+    "MOONUPDATE",
+    "SEA2NEXTUPDATE",
+    "200MVISITS",
+    "SORRYFORMANYRESTARTS",
+    "SORRYFORALLTHEBUGSBUTBETTER",
+    "SORRYFORALLTHEBUGSS",
+    "MASSIVEUPDATE",
+    "INFINITETOWER",
+    "SEA2SOON",
+    "175KFOLLOWSTYSM",
+    "150MVISITS",
+    "EIDMUBARAK",
+    "ALTERUPDATE",
+    "SMALLDELAYVERYSORRY",
+    "45KFOLLOWSTYY",
+    "HUGEUPDATEW",
+    "3SPECS",
+    "SORRYFORBADSEA2QUEST"
+}
+
+CodesTab:Button({
+    Title   = "Redeem All Codes",
+    Icon    = "gift",
+    Justify = "Center",
+    Callback = function()
+        WindUI:Notify({ Title = "Codes", Content = "Redeeming all codes...", Icon = "loader", Duration = 3 })
+        task.spawn(function()
+            for _, code in ipairs(CODES) do
+                pcall(function() CodeRedeem:InvokeServer(code) end)
+                task.wait(0.6)
+            end
+            WindUI:Notify({ Title = "Codes", Content = "All codes attempted.", Icon = "check", Duration = 5 })
+        end)
+    end,
+})
+
+-- ─────────────────────────────────────────────
+-- SECTION: Config Usage
+-- ─────────────────────────────────────────────
+local ConfigSection = Window:Section({ Title = "Config Usage", Opened = true })
+
+if not game:GetService("RunService"):IsStudio() then
+
+    local ConfigElementsTab = ConfigSection:Tab({
+        Title     = "Config Elements",
+        Icon      = "solar:file-text-bold",
+        IconColor = Color3.fromHex("#257AF7"),
+        Border    = true,
+    })
+
+    ConfigElementsTab:Space()
+
+    ConfigElementsTab:Keybind({
+        Flag     = "KeybindToggleUI",
+        Title    = "Toggle UI Keybind",
+        Desc     = "Key to open / close the window",
+        Value    = "K",
+        Callback = function(v)
+            Window:SetToggleKey(Enum.KeyCode[v])
+        end,
+    })
+
+    ConfigElementsTab:Space()
+
+    local ConfigTab = ConfigSection:Tab({
+        Title     = "Config",
+        Icon      = "solar:folder-with-files-bold",
+        IconColor = Color3.fromHex("#7775F2"),
+        Border    = true,
+    })
+
+    local ConfigManager = Window.ConfigManager
+    local ConfigName    = "default"
+
+    local ConfigNameInput = ConfigTab:Input({
+        Title    = "Config Name",
+        Icon     = "file-cog",
+        Value    = ConfigName,
+        Callback = function(value) ConfigName = value end,
+    })
+
+    ConfigTab:Space()
+
+    local AllConfigs     = ConfigManager:AllConfigs()
+    local DefaultValue   = table.find(AllConfigs, ConfigName) and ConfigName or nil
+
+    local AllConfigsDropdown = ConfigTab:Dropdown({
+        Title    = "All Configs",
+        Desc     = "Select an existing config",
+        Values   = AllConfigs,
+        Value    = DefaultValue,
+        Callback = function(value)
+            ConfigName = value
+            ConfigNameInput:Set(value)
+        end,
+    })
+
+    ConfigTab:Space()
+
+    ConfigTab:Button({
+        Title   = "Save Config",
+        Icon    = "save",
+        Justify = "Center",
+        Callback = function()
+            Window.CurrentConfig = ConfigManager:Config(ConfigName)
+            if Window.CurrentConfig:Save() then
+                WindUI:Notify({ Title = "Config Saved", Content = "'" .. ConfigName .. "' saved.", Icon = "check" })
+            end
+            AllConfigsDropdown:Refresh(ConfigManager:AllConfigs())
+        end,
+    })
+
+    ConfigTab:Space()
+
+    ConfigTab:Button({
+        Title   = "Load Config",
+        Icon    = "refresh-cw",
+        Justify = "Center",
+        Callback = function()
+            Window.CurrentConfig = ConfigManager:CreateConfig(ConfigName)
+            if Window.CurrentConfig:Load() then
+                WindUI:Notify({ Title = "Config Loaded", Content = "'" .. ConfigName .. "' loaded.", Icon = "refresh-cw" })
+            end
+        end,
+    })
+
+end
+
+-- ─────────────────────────────────────────────
+-- SECTION: Other  (Discord)
+-- ─────────────────────────────────────────────
+local OtherSection = Window:Section({ Title = "Other", Opened = true })
+
+local DiscordTab = OtherSection:Tab({
+    Title  = "Discord",
+    Icon   = "bird",
+    Border = true,
+})
+
+do
+    local InviteCode = "jTYJtXMZgc"
+    local DiscordAPI = "https://discord.com/api/v10/invites/" .. InviteCode .. "?with_counts=true&with_expiration=true"
+    local success, Response = pcall(function()
+        return WindUI.cloneref(game:GetService("HttpService")):JSONDecode(
+            WindUI.Creator.Request({
+                Url     = DiscordAPI,
+                Method  = "GET",
+                Headers = { ["User-Agent"] = "CHITO/1.0", ["Accept"] = "application/json" }
+            }).Body
+        )
+    end)
+
+    if success and Response and Response.guild then
+        DiscordTab:Section({ Title = "Join our Discord!", TextSize = 20 })
+        DiscordTab:Paragraph({
+            Title     = tostring(Response.guild.name),
+            Desc      = tostring(Response.guild.description or "Join for updates & support."),
+            Image     = "https://cdn.discordapp.com/icons/" .. Response.guild.id .. "/" .. Response.guild.icon .. ".png?size=1024",
+            Thumbnail = "https://cdn.discordapp.com/banners/" .. Response.guild.id .. "/" .. (Response.guild.banner or "") .. ".png?size=512",
+            ImageSize = 48,
+            Buttons   = {
+                { Title = "Copy Invite", Icon = "link", Callback = function()
+                    setclipboard("https://discord.gg/" .. InviteCode)
+                end }
+            }
+        })
+    else
+        DiscordTab:Section({ Title = "Join our Discord!", TextSize = 20 })
+        DiscordTab:Paragraph({
+            Title = "CHITO Hub Community",
+            Desc  = "Join for updates & support",
+            Buttons = {
+                { Title = "Copy Invite", Icon = "link", Callback = function()
+                    setclipboard("https://discord.gg/" .. InviteCode)
+                end }
+            }
+        })
+    end
+end
