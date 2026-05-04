@@ -116,7 +116,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v1.2 [BETA]",
+        Title = "v1.3 [BETA]",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -680,6 +680,224 @@ local function stopAutoDungeon()
 end
 
 
+-- AUTO TIME TRIAL
+local autoTimeTrialRunning = false
+local autoTimeTrialThread = nil
+local timeTrialSessionId = nil
+local timeTrialLobbyConnection = nil
+
+local function startAutoTimeTrial()
+    if autoTimeTrialRunning then return end
+    autoTimeTrialRunning = true
+
+    autoTimeTrialThread = task.spawn(function()
+        while autoTimeTrialRunning do
+            -- Step 1: Set up session ID listener and open lobby
+            timeTrialSessionId = nil
+
+            if timeTrialLobbyConnection then
+                timeTrialLobbyConnection:Disconnect()
+            end
+
+            timeTrialLobbyConnection = game.ReplicatedStorage.Remotes.UpdateTimeTrialLobby.OnClientEvent:Connect(function(data)
+                if data and data.SessionId then
+                    timeTrialSessionId = data.SessionId
+                    print("[AutoTimeTrial] Captured SessionId:", timeTrialSessionId)
+                end
+            end)
+
+            game.ReplicatedStorage.Remotes.StartTimeTrial:FireServer()
+            print("[AutoTimeTrial] Fired lobby open, waiting for SessionId...")
+
+            local waited = 0
+            repeat
+                task.wait(0.1)
+                waited += 0.1
+                if waited > 15 then
+                    print("[AutoTimeTrial] Timeout waiting for SessionId - retrying")
+                    break
+                end
+            until timeTrialSessionId ~= nil or not autoTimeTrialRunning
+
+            if not autoTimeTrialRunning then break end
+            if not timeTrialSessionId then continue end
+
+            print("[AutoTimeTrial] Starting trial with SessionId:", timeTrialSessionId)
+            game.ReplicatedStorage.Remotes.StartTimeTrial:FireServer(timeTrialSessionId)
+
+            -- Step 2: Wait for GeneratedDungeon Room_1 to appear
+            local dungeon = workspace:WaitForChild("GeneratedDungeon", 15)
+            if not dungeon then
+                print("[AutoTimeTrial] GeneratedDungeon not found - retrying")
+                task.wait(3)
+                continue
+            end
+
+            -- Wait for first room
+            local room = dungeon:WaitForChild("Room_1", 15)
+            if not room then
+                print("[AutoTimeTrial] Room_1 not found - retrying")
+                task.wait(3)
+                continue
+            end
+
+            -- Teleport and kill loop across rooms
+            local roomIndex = 1
+            local trialActive = true
+
+            while autoTimeTrialRunning and trialActive do
+                local roomName = "Room_" .. roomIndex
+                local currentRoom = dungeon:FindFirstChild(roomName)
+
+                if not currentRoom then
+                    -- Wait a bit for it to appear
+                    local waitTime = 0
+                    repeat
+                        task.wait(0.3)
+                        waitTime += 0.3
+                        currentRoom = dungeon:FindFirstChild(roomName)
+
+                        -- Check if dungeon ended (folder emptied)
+                        if #dungeon:GetChildren() == 0 then
+                            print("[AutoTimeTrial] GeneratedDungeon emptied - trial ended")
+                            trialActive = false
+                            break
+                        end
+                    until currentRoom or waitTime > 20 or not autoTimeTrialRunning
+
+                    if not currentRoom or not autoTimeTrialRunning then break end
+                end
+
+                -- Step 2: Teleport to room
+                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hrp and currentRoom:FindFirstChild("HumanoidRootPart") then
+                    -- Try to find a spawn/center point in the room
+                    local roomPart = currentRoom:FindFirstChildWhichIsA("BasePart")
+                    if roomPart then
+                        teleportTo(roomPart.CFrame + Vector3.new(0, 5, 0))
+                        print("[AutoTimeTrial] Teleported to " .. roomName)
+                    end
+                elseif hrp then
+                    local roomPart = currentRoom:FindFirstChildWhichIsA("BasePart")
+                    if roomPart then
+                        teleportTo(roomPart.CFrame + Vector3.new(0, 5, 0))
+                        print("[AutoTimeTrial] Teleported to " .. roomName)
+                    end
+                end
+
+                task.wait(1.5)
+
+                -- Step 3: Wait for mobs to stabilize, then kill
+                local remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                local HitMob = remotes and remotes:FindFirstChild("HitMob")
+                local assets = game:GetService("ReplicatedStorage"):FindFirstChild("Assets")
+                local weapons = assets and assets:FindFirstChild("Weapons")
+                local weapon = weapons and weapons:FindFirstChild("Dragonsoul Scythe")
+                local mobsFolder = workspace:FindFirstChild("Mobs")
+
+                if HitMob and weapon and mobsFolder then
+                    -- Wait for mob count to stabilize (stop growing)
+                    local lastCount = -1
+                    local stableTime = 0
+                    while stableTime < 0.6 do -- ← tweak if mobs still miss
+                        local count = #mobsFolder:GetChildren()
+                        if count == lastCount then
+                            stableTime += 0.2
+                        else
+                            stableTime = 0
+                            lastCount = count
+                        end
+                        task.wait(0.2)
+                    end
+
+                    local dmgMult = 1
+                    local ok, result = pcall(function()
+                        return 1 + remotes:WaitForChild("GetUpgradeValue"):InvokeServer("Damage Multiplier") / 100
+                    end)
+                    if ok then dmgMult = result end
+
+                    local damage = dmgMult * (weapon:GetAttribute("Damage") or 100) * 4
+                    local args = {}
+
+                    for _, mob in pairs(mobsFolder:GetChildren()) do
+                        if mob and mob.ClassName == "Model" and mob:FindFirstChild("HumanoidRootPart") then
+                            local mobID = mob:GetAttribute("ID")
+                            if mobID then
+                                table.insert(args, { mobID, damage, weapon })
+                            end
+                        end
+                    end
+
+                    if #args > 0 then
+                        pcall(function()
+                            HitMob:FireServer(args)
+                        end)
+                        print("[AutoTimeTrial] Killed " .. #args .. " mob(s) in " .. roomName)
+
+                        -- Instant cleanup
+                        if timeTrialCleanup then
+                            for _, mob in pairs(mobsFolder:GetChildren()) do
+                                if mob:IsA("Model") then
+                                    pcall(function() mob:Destroy() end)
+                                end
+                            end
+                        end
+                    else
+                        print("[AutoTimeTrial] No mobs found in " .. roomName)
+                    end
+                end
+
+                -- Step 4: Check if next room exists, else check if dungeon ended
+                local nextRoom = dungeon:FindFirstChild("Room_" .. (roomIndex + 1))
+                if nextRoom then
+                    roomIndex += 1
+                elseif #dungeon:GetChildren() == 0 then
+                    print("[AutoTimeTrial] No more rooms and dungeon empty - trial complete")
+                    trialActive = false
+                else
+                    -- Wait a moment for next room to possibly spawn
+                    task.wait(2)
+                    if dungeon:FindFirstChild("Room_" .. (roomIndex + 1)) then
+                        roomIndex += 1
+                    elseif #dungeon:GetChildren() == 0 then
+                        trialActive = false
+                    end
+                end
+            end
+
+            -- Cleanup connection
+            if timeTrialLobbyConnection then
+                timeTrialLobbyConnection:Disconnect()
+                timeTrialLobbyConnection = nil
+            end
+
+            print("[AutoTimeTrial] Trial ended, restarting in 3s...")
+            task.wait(3)
+        end
+
+        print("[AutoTimeTrial] Stopped")
+    end)
+end
+
+local function stopAutoTimeTrial()
+    autoTimeTrialRunning = false
+    if autoTimeTrialThread then
+        task.cancel(autoTimeTrialThread)
+        autoTimeTrialThread = nil
+    end
+    if timeTrialLobbyConnection then
+        timeTrialLobbyConnection:Disconnect()
+        timeTrialLobbyConnection = nil
+    end
+    -- Fire leave remote just in case we're mid-session
+    pcall(function()
+        if timeTrialSessionId then
+            game:GetService("ReplicatedStorage").Remotes.LeaveTimeTrial:FireServer(timeTrialSessionId)
+        end
+    end)
+    print("[AutoTimeTrial] Stopped and cleaned up")
+end
+
 
 -- auto ascend
 local leaderstats = LocalPlayer:WaitForChild("leaderstats")
@@ -1107,6 +1325,7 @@ do
 
     MainTab:Toggle({
         Title = "KillAura",
+        Flag = "KillAuraFlag",
         Desc = "automatically hits all spawned mobs, might take slightly longer in dungeon depending on boss's HP",
         Icon = "zap",
         Default = false,
@@ -1122,7 +1341,7 @@ do
                     local HitMob = Remotes:WaitForChild("HitMob")
                     local Assets = ReplicatedStorage:WaitForChild("Assets")
                     local Weapons = Assets:WaitForChild("Weapons")
-                    local weapon = Weapons:WaitForChild("Hellscape Greatsword")
+                    local weapon = Weapons:WaitForChild("Dragonsoul Scythe")
                     local dmgMult = 1
                     local success, result = pcall(function()
                         return 1 + Remotes:GetUpgradeValue():InvokeServer("Damage Multiplier") / 100
@@ -1294,6 +1513,7 @@ do
 
     AutoFarmSection:Toggle({
         Title = "Auto Loot",
+        Flag = "Auto_Loot_Flag",
         Desc = "Automatically collects all loot",
         Value = false,
         Callback = function(enabled)
@@ -1324,6 +1544,40 @@ do
 
     AutomationTab:Space()
 
+    local AutoTimeTrialSection = AutomationTab:Section({
+        Title = "Auto Time Trial",
+        Opened = true
+    })
+
+    AutoTimeTrialSection:Toggle({
+        Title = "Auto Time Trial",
+        Flag = "Auto_Time_Trial_Flag",
+        Value = false,
+        Callback = function(enabled)
+            if enabled then
+                startAutoTimeTrial()
+            else
+                stopAutoTimeTrial()
+            end
+        end
+    })
+
+    -- ADD THIS:
+    local timeTrialCleanup = true  -- default on
+
+    AutoTimeTrialSection:Toggle({
+        Title = "Cleanup on kill",
+        Flag = "Auto_Time_Trial_Cleanup",
+        Desc = "I recommend this to be disabled and turn on Kill Aura from Main tab.",
+        Value = false,
+        Type = "Checkbox",
+        Callback = function(enabled)
+            timeTrialCleanup = enabled
+        end
+    })
+
+    AutomationTab:Space()
+
     local AutoAscendSection = AutomationTab:Section({
         Title = "Auto Ascend",
         Opened = true
@@ -1331,6 +1585,7 @@ do
 
     AutoAscendSection:Toggle({
         Title = "Auto Ascend",
+        Flag = "Auto_Ascend",
         Desc = "might take a few seconds after hitting the required goal",
         Value = false,
         Callback = function(enabled)
@@ -1424,6 +1679,7 @@ do
 
     AutoUpgradeSection:Dropdown({
         Title = "Select Upgrades",
+        Flag = "dropdown_select_upgrades_flag",
         Values = upgradeNames,
         Multi = true,
         Value = {},                     -- or Value = {"Damage Multiplier", "Mana Multiplier"} for defaults
@@ -1443,6 +1699,7 @@ do
 
     AutoUpgradeSection:Toggle({
         Title = "Enable Auto Upgrade",
+        Flag = "Auto_Upgrade_Flag",
         Desc = "Spams upgrade on selected stats.",
         Value = false,
         Callback = function(enabled)
@@ -1469,6 +1726,7 @@ do
     -- Dropdown FIRST – so it's defined when refresh is called
     local sacrificeDropdown = AutoSacSection:Dropdown({
         Title = "Weapon to Sacrifice",
+        Flag = "SacrificeWeapon_Dropdown_Flag",
         Values = {"None"},
         Value = "None",
         Callback = function(val)
@@ -1593,6 +1851,8 @@ do
 
     AutoSacSection:Toggle({
         Title = "Auto Sacrifice",
+        Flag = "Auto_Sacrifice",
+    
         Desc = "Sacrifices selected weapon 25 times every 61 minutes.",
         Value = false,
         Callback = function(state)
@@ -1870,6 +2130,7 @@ do
 
     PlayerTab:Toggle({
         Title = "Noclip",
+        Flag = "Noclip_flag",
         Callback = function(state)
             if state then
                 enableNoclip()
@@ -1883,6 +2144,7 @@ do
 
     PlayerTab:Toggle({
         Title = "Float",
+        Flag = "Float_flag",
         Desc = "Jumping while floating up (E) or down (Q) might break float.",
         Callback = function(state)
             if state then
@@ -1898,6 +2160,7 @@ do
 
     PlayerTab:Toggle({
         Title = "Infinite Jump",
+        Flag = "infjump_flag",
         Callback = function(state)
             if state then
                 enableInfJump()
@@ -1912,6 +2175,7 @@ do
     -- WalkSpeed Toggle & Slider
     local WalkSpeedToggle = PlayerTab:Toggle({
         Title = "WalkSpeed",
+        Flag = "WalkSpeed_Flag",
         Desc = "Enable custom WalkSpeed",
         Callback = function(state)
             setSpeedEnabled(state)
@@ -1920,6 +2184,7 @@ do
 
     local WalkSpeedSlider = PlayerTab:Slider({
         Title = "WalkSpeed Value",
+        Flag = "WS_VAL_FLAG",
         Step = 1,
         Value = {
             Min = 16,
@@ -1936,6 +2201,7 @@ do
     -- JumpPower Toggle & Slider
     local JumpPowerToggle = PlayerTab:Toggle({
         Title = "JumpPower",
+        Flag = "jp_flag",
         Desc = "Enable custom JumpPower",
         Callback = function(state)
             setJumpEnabled(state)
@@ -1944,6 +2210,7 @@ do
 
     local JumpPowerSlider = PlayerTab:Slider({
         Title = "JumpPower Value",
+        Flag = "jp_slider_flag",
         Step = 1,
         Value = {
             Min = 50,
