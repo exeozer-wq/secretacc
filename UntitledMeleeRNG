@@ -130,6 +130,49 @@ game.Players.LocalPlayer.Idled:Connect(function()
     vu:ClickButton2(Vector2.new())
 end)
 
+-- At the top, after Window is created
+local AUTO_LOAD_FILE = "UntitledMeleeRNG/autoload.txt"  -- same folder as your configs
+
+local function getAutoLoadPref()
+    if isfile(AUTO_LOAD_FILE) then
+        local name = readfile(AUTO_LOAD_FILE)
+        return (name and name ~= "") and name or nil
+    end
+    return nil
+end
+
+local function setAutoLoadPref(name)
+    if name == "None" or not name then
+        if isfile(AUTO_LOAD_FILE) then
+            delfile(AUTO_LOAD_FILE)
+        end
+    else
+        writefile(AUTO_LOAD_FILE, name)
+    end
+end
+
+-- Auto-load on script start
+do
+    local ConfigManager = Window.ConfigManager
+    task.delay(2, function()  -- 2 seconds gives all tabs/flags time to register
+        local name = getAutoLoadPref()
+        if name then
+            local config = ConfigManager:Config(name)
+            if config then
+                config:Load()
+                print("[Config] Auto-loaded: " .. name)
+                WindUI:Notify({
+                    Title = "Config Auto-Loaded",
+                    Content = "'" .. name .. "' loaded automatically",
+                    Icon = "refresh-cw",
+                    Duration = 4
+                })
+            else
+                print("[Config] Config not found: " .. name)
+            end
+        end
+    end)
+end
 
 -- */  Theme (soon)  /* --
 do
@@ -2582,7 +2625,7 @@ if not game:GetService("RunService"):IsStudio() then
     end
         
     
-    do -- config panel
+do -- config panel
         local ConfigTab = ConfigUsageSection:Tab({
             Title = "Config Usage",
             Icon = "solar:folder-with-files-bold",
@@ -2603,16 +2646,6 @@ if not game:GetService("RunService"):IsStudio() then
         })
 
         ConfigTab:Space()
-        
-        -- local AutoLoadToggle = ConfigTab:Toggle({
-        --     Title = "Enable Auto Load to Selected Config",
-        --     Value = false,
-        --     Callback = function(v)
-        --         Window.CurrentConfig:SetAutoLoad(v)
-        --     end
-        -- })
-
-        -- ConfigTab:Space()
 
         local AllConfigs = ConfigManager:AllConfigs()
         local DefaultValue = table.find(AllConfigs, ConfigName) and ConfigName or nil
@@ -2625,8 +2658,33 @@ if not game:GetService("RunService"):IsStudio() then
             Callback = function(value)
                 ConfigName = value
                 ConfigNameInput:Set(value)
-                
-                AutoLoadToggle:Set(ConfigManager:GetConfig(ConfigName).AutoLoad or false)
+            end
+        })
+
+        ConfigTab:Space()
+
+        -- Auto Load dropdown — select which config loads automatically on start
+        local autoLoadNames = ConfigManager:AllConfigs()
+        local autoLoadDecoded = {}
+        local ok, decoded = pcall(function()
+            return game:GetService("HttpService"):JSONDecode(ConfigManager:GetAutoLoadConfigs())
+        end)
+        local currentAutoLoad = (ok and decoded and #decoded > 0) and decoded[1] or "None"
+
+        table.insert(autoLoadNames, 1, "None")
+
+        ConfigTab:Dropdown({
+            Title = "Auto Load Config",
+            Desc = "Selected config will load automatically on script start.",
+            Values = autoLoadNames,
+            Value = getAutoLoadPref() or "None",
+            Callback = function(value)
+                setAutoLoadPref(value)  -- just writes/deletes a .txt file
+                WindUI:Notify({
+                    Title = "Auto Load " .. (value == "None" and "Cleared" or "Set"),
+                    Content = value == "None" and "No config will auto-load" or "'" .. value .. "' will load on next start",
+                    Duration = 4
+                })
             end
         })
 
@@ -2645,8 +2703,13 @@ if not game:GetService("RunService"):IsStudio() then
                         Icon = "check",
                     })
                 end
-                
-                AllConfigsDropdown:Refresh(ConfigManager:AllConfigs())
+
+                -- Refresh both dropdowns after saving
+                local fresh = ConfigManager:AllConfigs()
+                AllConfigsDropdown:Refresh(fresh)
+
+                local freshWithNone = {"None"}
+                for _, v in ipairs(fresh) do table.insert(freshWithNone, v) end
             end
         })
 
@@ -2657,7 +2720,7 @@ if not game:GetService("RunService"):IsStudio() then
             Icon = "",
             Justify = "Center",
             Callback = function()
-                Window.CurrentConfig = ConfigManager:CreateConfig(ConfigName)
+                Window.CurrentConfig = ConfigManager:Config(ConfigName)  -- NOT CreateConfig
                 if Window.CurrentConfig:Load() then
                     WindUI:Notify({
                         Title = "Config Loaded",
@@ -2669,15 +2732,6 @@ if not game:GetService("RunService"):IsStudio() then
         })
 
         ConfigTab:Space()
-
-        ConfigTab:Button({
-            Title = "Print AutoLoad Configs",
-            Icon = "",
-            Justify = "Center",
-            Callback = function()
-                print(HttpService:JSONDecode(ConfigManager:GetAutoLoadConfigs()))
-            end
-        })
     end
 end
 
