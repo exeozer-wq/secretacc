@@ -370,11 +370,12 @@ local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local ConfirmAscend = Remotes:WaitForChild("ConfirmAscend")
-
+-- variables
 local autoLootRunning = false
 local lootThread = nil
 local KillAuraEnabled = false
 local KillAuraThread = nil
+local timeTrialCleanup = true  -- default on
 
 local function fireLoot(part)
     print("[AutoLoot] Attempting to fire touch on: " .. part:GetFullName())
@@ -735,7 +736,6 @@ local function startAutoTimeTrial()
 
     autoTimeTrialThread = task.spawn(function()
         while autoTimeTrialRunning do
-            -- Step 1: Set up session ID listener and open lobby
             timeTrialSessionId = nil
 
             if timeTrialLobbyConnection then
@@ -756,108 +756,110 @@ local function startAutoTimeTrial()
             repeat
                 task.wait(0.1)
                 waited += 0.1
-                if waited > 15 then
-                    print("[AutoTimeTrial] Timeout waiting for SessionId - retrying")
-                    break
-                end
-            until timeTrialSessionId ~= nil or not autoTimeTrialRunning
+            until timeTrialSessionId ~= nil or waited > 15 or not autoTimeTrialRunning
 
             if not autoTimeTrialRunning then break end
-            if not timeTrialSessionId then continue end
+            if not timeTrialSessionId then
+                print("[AutoTimeTrial] Timeout waiting for SessionId - retrying")
+                continue
+            end
 
             print("[AutoTimeTrial] Starting trial with SessionId:", timeTrialSessionId)
             game.ReplicatedStorage.Remotes.StartTimeTrial:FireServer(timeTrialSessionId)
 
-            -- Step 2: Wait for GeneratedDungeon Room_1 to appear
-            local dungeon = workspace:WaitForChild("GeneratedDungeon", 15)
+            local dungeon = workspace:WaitForChild("GeneratedDungeon", 20)
             if not dungeon then
                 print("[AutoTimeTrial] GeneratedDungeon not found - retrying")
                 task.wait(3)
                 continue
             end
 
-            -- Wait for first room
-            local room = dungeon:WaitForChild("Room_1", 15)
-            if not room then
+            local firstRoom = dungeon:WaitForChild("Room_1", 20)
+            if not firstRoom then
                 print("[AutoTimeTrial] Room_1 not found - retrying")
                 task.wait(3)
                 continue
             end
 
-            -- Teleport and kill loop across rooms
+            -- Shared state between teleport watcher and kill loop
             local roomIndex = 1
             local trialActive = true
+            local currentTargetRoom = 1  -- the room we should currently be in
+
+            -- ── TELEPORT WATCHER (runs in parallel) ──────────────────────────
+            -- Instantly teleports whenever a new room appears
+            local teleportWatcher = task.spawn(function()
+				while autoTimeTrialRunning and trialActive do
+
+					if #dungeon:GetChildren() == 0 then
+						print("[AutoTimeTrial] Watcher: dungeon emptied")
+						trialActive = false
+						break
+					end
+
+					-- Find the highest room number currently in the dungeon
+					local highestRoom = currentTargetRoom
+					local highestPart = nil
+
+					for i = currentTargetRoom + 1, currentTargetRoom + 10 do
+						local room = dungeon:FindFirstChild("Room_" .. i)
+						if room then
+							local part = room:FindFirstChildWhichIsA("BasePart")
+							if part then
+								highestRoom = i
+								highestPart = part
+							end
+						else
+							break -- rooms are sequential, no point checking further
+						end
+					end
+
+					if highestRoom > currentTargetRoom then
+						currentTargetRoom = highestRoom
+						teleportTo(highestPart.CFrame + Vector3.new(0, 5, 0))
+						print("[AutoTimeTrial] teleported to Room_" .. currentTargetRoom .. " (skipped ahead if needed)")
+					end
+
+					task.wait(0.05)
+				end
+			end)
+
+            -- ── KILL LOOP (runs normally, no longer responsible for teleporting) ──
+            local remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+            local HitMob = remotes and remotes:FindFirstChild("HitMob")
+            local assets = game:GetService("ReplicatedStorage"):FindFirstChild("Assets")
+            local weapons = assets and assets:FindFirstChild("Weapons")
+            local weapon = weapons and weapons:FindFirstChild("Dragonsoul Scythe")
+            local mobsFolder = workspace:FindFirstChild("Mobs")
+
+            -- Teleport to Room_1 first
+            local r1part = firstRoom:FindFirstChildWhichIsA("BasePart")
+            if r1part then
+                teleportTo(r1part.CFrame + Vector3.new(0, 5, 0))
+                print("[AutoTimeTrial] Teleported to Room_1")
+            end
 
             while autoTimeTrialRunning and trialActive do
-                local roomName = "Room_" .. roomIndex
-                local currentRoom = dungeon:FindFirstChild(roomName)
-
-                if not currentRoom then
-                    -- Wait a bit for it to appear
-                    local waitTime = 0
-                    repeat
-                        task.wait(0.3)
-                        waitTime += 0.3
-                        currentRoom = dungeon:FindFirstChild(roomName)
-
-                        -- Check if dungeon ended (folder emptied)
-                        if #dungeon:GetChildren() == 0 then
-                            print("[AutoTimeTrial] GeneratedDungeon emptied - trial ended")
-                            trialActive = false
-                            break
-                        end
-                    until currentRoom or waitTime > 20 or not autoTimeTrialRunning
-
-                    if not currentRoom or not autoTimeTrialRunning then break end
-                end
-
-                -- Step 2: Teleport to room
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp and currentRoom:FindFirstChild("HumanoidRootPart") then
-                    -- Try to find a spawn/center point in the room
-                    local roomPart = currentRoom:FindFirstChildWhichIsA("BasePart")
-                    if roomPart then
-                        teleportTo(roomPart.CFrame + Vector3.new(0, 5, 0))
-                        print("[AutoTimeTrial] Teleported to " .. roomName)
-                    end
-                elseif hrp then
-                    local roomPart = currentRoom:FindFirstChildWhichIsA("BasePart")
-                    if roomPart then
-                        teleportTo(roomPart.CFrame + Vector3.new(0, 5, 0))
-                        print("[AutoTimeTrial] Teleported to " .. roomName)
-                    end
-                end
-
-                task.wait(1.5)
-
-                -- Step 3: Wait for mobs to stabilize, then kill
-                local remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
-                local HitMob = remotes and remotes:FindFirstChild("HitMob")
-                local assets = game:GetService("ReplicatedStorage"):FindFirstChild("Assets")
-                local weapons = assets and assets:FindFirstChild("Weapons")
-                local weapon = weapons and weapons:FindFirstChild("Dragonsoul Scythe")
-                local mobsFolder = workspace:FindFirstChild("Mobs")
-
                 if HitMob and weapon and mobsFolder then
-                    -- Wait for mob count to stabilize (stop growing)
+                    -- Wait for mobs to stabilize
                     local lastCount = -1
                     local stableTime = 0
-                    while stableTime < 0.6 do -- ← tweak if mobs still miss
+                    while stableTime < 0.4 and autoTimeTrialRunning do
                         local count = #mobsFolder:GetChildren()
                         if count == lastCount then
-                            stableTime += 0.2
+                            stableTime += 0.1
                         else
                             stableTime = 0
                             lastCount = count
                         end
-                        task.wait(0.2)
+                        task.wait(0.1)
                     end
 
                     local dmgMult = 1
                     local ok, result = pcall(function()
                         return 1 + remotes:WaitForChild("GetUpgradeValue"):InvokeServer("Damage Multiplier") / 100
                     end)
-                    if ok then dmgMult = result end
+                    if ok and result then dmgMult = result end
 
                     local damage = dmgMult * (weapon:GetAttribute("Damage") or 100) * 4
                     local args = {}
@@ -872,49 +874,31 @@ local function startAutoTimeTrial()
                     end
 
                     if #args > 0 then
-                        pcall(function()
-                            HitMob:FireServer(args)
-                        end)
-                        print("[AutoTimeTrial] Killed " .. #args .. " mob(s) in " .. roomName)
+                        pcall(function() HitMob:FireServer(args) end)
+                        print("[AutoTimeTrial] Hit " .. #args .. " mob(s)")
+                    end
 
-                        -- Instant cleanup
-                        if timeTrialCleanup then
-                            for _, mob in pairs(mobsFolder:GetChildren()) do
-                                if mob:IsA("Model") then
-                                    pcall(function() mob:Destroy() end)
-                                end
+                    if timeTrialCleanup then
+                        for _, mob in pairs(mobsFolder:GetChildren()) do
+                            if mob:IsA("Model") then
+                                pcall(function() mob:Destroy() end)
                             end
                         end
-                    else
-                        print("[AutoTimeTrial] No mobs found in " .. roomName)
                     end
                 end
 
-                -- Step 4: Check if next room exists, else check if dungeon ended
-                local nextRoom = dungeon:FindFirstChild("Room_" .. (roomIndex + 1))
-                if nextRoom then
-                    roomIndex += 1
-                elseif #dungeon:GetChildren() == 0 then
-                    print("[AutoTimeTrial] No more rooms and dungeon empty - trial complete")
-                    trialActive = false
-                else
-                    -- Wait a moment for next room to possibly spawn
-                    task.wait(2)
-                    if dungeon:FindFirstChild("Room_" .. (roomIndex + 1)) then
-                        roomIndex += 1
-                    elseif #dungeon:GetChildren() == 0 then
-                        trialActive = false
-                    end
-                end
+                task.wait(0.3)
             end
 
-            -- Cleanup connection
+            -- Clean up watcher
+            task.cancel(teleportWatcher)
+
             if timeTrialLobbyConnection then
                 timeTrialLobbyConnection:Disconnect()
                 timeTrialLobbyConnection = nil
             end
 
-            print("[AutoTimeTrial] Trial ended, restarting in 3s...")
+            print("[AutoTimeTrial] Trial cycle ended, restarting in 3s...")
             task.wait(3)
         end
 
@@ -1605,8 +1589,6 @@ do
         end
     })
 
-    -- ADD THIS:
-    local timeTrialCleanup = true  -- default on
 
     AutoTimeTrialSection:Toggle({
         Title = "Cleanup on kill",
@@ -1651,7 +1633,8 @@ do
         "Skill Point Multiplier",
         "Enemy Spawn Rate",
         "Kill Multiplier",
-        "Weapons Equipped"
+        "Weapons Equipped",
+        "Max Offline Kills"
     }
     table.sort(upgradeNames)
 
@@ -2327,7 +2310,7 @@ do
             elseif version > 1611 then
                 WindUI:Notify({
                     Title = "Server Check",
-                    Content = "Dupe **may not be supported** here (version " .. version .. ")",
+                    Content = "nigga the dupe is DEFINITELY not supported.. (version " .. version .. ")",
                     Duration = 7,
                     -- Type = "Warning" if supported
                 })
