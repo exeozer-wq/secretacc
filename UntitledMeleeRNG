@@ -376,6 +376,10 @@ local lootThread = nil
 local KillAuraEnabled = false
 local KillAuraThread = nil
 local timeTrialCleanup = true  -- default on
+local hideMobsEnabled = false
+local hideMobsHook = nil
+local hideMobsFireServer = nil
+
 
 local function fireLoot(part)
     print("[AutoLoot] Attempting to fire touch on: " .. part:GetFullName())
@@ -936,6 +940,78 @@ local autoAscendConnection = nil
 
 local function getRequiredKills(currentAscends)
     return (currentAscends + 2) * 1000000   -- 2M at 0, 3M at 1, 4M at 2, etc.
+end
+
+local function clickHideMobsBtn()
+    pcall(function()
+        local btn = game:GetService("Players").LocalPlayer.PlayerGui.MainGUI.OptionsList.HideMobsBtn
+        -- Try firesignal first (most exploits support this)
+        local fired = false
+        
+        pcall(function()
+            firesignal(btn.Activated)
+            fired = true
+        end)
+        
+        if not fired then
+            pcall(function()
+                firesignal(btn.MouseButton1Click)
+                fired = true
+            end)
+        end
+        
+        if not fired then
+            -- Last resort: simulate via GuiService
+            pcall(function()
+                local uis = game:GetService("UserInputService")
+                btn:TweenPosition(btn.Position, "Out", "Linear", 0)  -- dummy call to wake it
+                firesignal(btn.Activated)
+            end)
+        end
+        
+        print("[HideMobs] Clicked HideMobsBtn (fired=" .. tostring(fired) .. ")")
+    end)
+end
+
+local function setupHideMobs()
+    local RS = game:GetService("ReplicatedStorage")
+    local mobsFolder = workspace:FindFirstChild("Mobs") or RS:FindFirstChild("Mobs")
+    if not mobsFolder then
+        print("[HideMobs] Mobs folder not found")
+        return
+    end
+    
+    -- Only move if not already hidden
+    if mobsFolder.Parent ~= RS then
+        mobsFolder.Parent = RS
+        print("[HideMobs] Moved Mobs to ReplicatedStorage (hidden)")
+    end
+    
+    -- Sync the button label and fire remote to match game state
+    pcall(function()
+        local btn = game:GetService("Players").LocalPlayer.PlayerGui.MainGUI.OptionsList.HideMobsBtn
+        btn.TextLabel.Text = "HIDE MOBS: ON"
+    end)
+    pcall(function()
+        RS.Remotes.SetSetting:FireServer("HideMobs", true)
+    end)
+end
+
+local function teardownHideMobs()
+    local RS = game:GetService("ReplicatedStorage")
+    local mobsFolder = RS:FindFirstChild("Mobs")
+    if mobsFolder then
+        mobsFolder.Parent = workspace
+        print("[HideMobs] Moved Mobs back to workspace (visible)")
+    end
+    
+    pcall(function()
+        local btn = game:GetService("Players").LocalPlayer.PlayerGui.MainGUI.OptionsList.HideMobsBtn
+        btn.TextLabel.Text = "HIDE MOBS: OFF"
+    end)
+    pcall(function()
+        RS.Remotes.SetSetting:FireServer("HideMobs", false)
+    end)
 end
 
 local function checkAndAscend()
@@ -1521,6 +1597,37 @@ do
             end)
         end
     })
+
+	MainTab:Space()
+
+	MainTab:Toggle({
+		Title = "Always Hide Mobs",
+		Flag = "AlwaysHideMobs_Flag",
+		Desc = "Moves Mobs folder out of workspace so they don't render.",
+		Icon = "eye-off",
+		Default = false,
+		Callback = function(value)
+			hideMobsEnabled = value
+			if value then
+				setupHideMobs()
+				
+				-- Watch for game moving them back (e.g. during raids - see StartRaid remote in source)
+				task.spawn(function()
+					while hideMobsEnabled do
+						local mobs = workspace:FindFirstChild("Mobs")
+						if mobs then
+							-- Game moved them back to workspace, re-hide
+							mobs.Parent = game:GetService("ReplicatedStorage")
+							print("[HideMobs] Re-hid mobs (game moved them back)")
+						end
+						task.wait(0.5)
+					end
+				end)
+			else
+				teardownHideMobs()
+			end
+		end
+	})
 end
 
 -- */ Automation Tab /* --
