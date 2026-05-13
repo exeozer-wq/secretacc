@@ -1810,23 +1810,31 @@ do
 
     -- ─── UI ───────────────────────────────────────────────
 
-    AutoUpgradeSection:Dropdown({
-        Title = "Select Upgrades",
-        Flag = "dropdown_select_upgrades_flag",
-        Values = upgradeNames,
-        Multi = true,
-        Value = {},                     -- or Value = {"Damage Multiplier", "Mana Multiplier"} for defaults
-        Callback = function(newSelected)
-            selectedUpgrades = newSelected
-            
-            -- Optional: auto-restart when selection changes while running
-            if autoUpgradeRunning then
-                stopAutoUpgrade()
-                task.wait(0.12)
-                startAutoUpgrade()
-            end
-        end,
-    })
+	local upgradeToggleSection = AutoUpgradeSection:Section({ Title = "Select Upgrades (CLICK ME)" })
+
+	for _, upgradeName in ipairs(upgradeNames) do
+		upgradeToggleSection:Toggle({
+			Title = upgradeName,
+			Value = false,
+			Callback = function(v)
+				if v then
+					if not table.find(selectedUpgrades, upgradeName) then
+						table.insert(selectedUpgrades, upgradeName)
+					end
+				else
+					local idx = table.find(selectedUpgrades, upgradeName)
+					if idx then table.remove(selectedUpgrades, idx) end
+				end
+
+				-- Auto-restart if running
+				if autoUpgradeRunning then
+					stopAutoUpgrade()
+					task.wait(0.12)
+					startAutoUpgrade()
+				end
+			end
+		})
+	end
 
     AutoUpgradeSection:Space()
 
@@ -1846,156 +1854,139 @@ do
 
     
     -- AUTO TOTEM SACRIFICE
-    local AutoSacSection = AutomationTab:Section({
-        Title = "Auto Totem Sacrifice",
-        Opened = true
-    })
+	local AutoSacSection = AutomationTab:Section({
+		Title = "Auto Totem Sacrifice",
+		Opened = true
+	})
 
-    local selectedWeapon = nil
-    local autoSacEnabled = false
-    local autoSacThread = nil
-    local lastSacTime = 0
+	local selectedWeapon = nil
+	local autoSacEnabled = false
+	local autoSacThread = nil
+	local lastSacTime = 0
+	local sacAmount = 25
+	local sacIntervalMinutes = 61
 
-    -- Dropdown FIRST – so it's defined when refresh is called
-    local sacrificeDropdown = AutoSacSection:Dropdown({
-        Title = "Weapon to Sacrifice",
-        Flag = "SacrificeWeapon_Dropdown_Flag",
-        Values = {"None"},
-        Value = "None",
-        Callback = function(val)
-            selectedWeapon = val
-        end
-    })
+	AutoSacSection:Input({
+		Title = "Weapon Name",
+		Desc = "Type the exact weapon name (case-sensitive)",
+		Placeholder = "e.g. Dead Scythe",
+		Callback = function(val)
+			selectedWeapon = val ~= "" and val or nil
+		end
+	})
 
-    local function refreshWeaponNames()
-        local success, result = pcall(function()
-            return Remotes:WaitForChild("GetWeaponsInv"):InvokeServer()
-        end)
+	AutoSacSection:Slider({
+		Title = "Sacrifices per batch",
+		Flag = "Sac_Amount_Flag",
+		Step = 1,
+		Value = { Min = 1, Max = 100, Default = 25 },
+		Callback = function(val)
+			sacAmount = val
+		end
+	})
 
-        if not success or type(result) ~= "table" then
-            WindUI:Notify({
-                Title = "Inventory Error",
-                Content = "Failed to fetch weapon names",
-                Duration = 4
-            })
-            return
-        end
+	AutoSacSection:Slider({
+		Title = "Interval (minutes)",
+		Flag = "Sac_Interval_Flag",
+		Step = 1,
+		Value = { Min = 1, Max = 180, Default = 61 },
+		Callback = function(val)
+			sacIntervalMinutes = val
+		end
+	})
 
-        local weaponSet = {}  -- unique names only
+	AutoSacSection:Space()
 
-        -- Your exact format: array of tables with ["Name"]
-        for _, entry in pairs(result) do
-            if type(entry) == "table" and entry["Name"] and type(entry["Name"]) == "string" then
-                weaponSet[entry["Name"]] = true
-            end
-        end
+	local function doSacrifices()
+		if not selectedWeapon or selectedWeapon == "" then
+			WindUI:Notify({ Title = "No Weapon", Content = "Enter a weapon name first", Duration = 4 })
+			return false
+		end
 
-        local options = {"None"}
-        for name in pairs(weaponSet) do
-            table.insert(options, name)
-        end
-        table.sort(options)
+		WindUI:Notify({
+			Title = "Sacrificing",
+			Content = "Sending " .. sacAmount .. "× " .. selectedWeapon .. "...",
+			Duration = 5
+		})
 
-        -- NOW it's safe to call :Refresh
-        sacrificeDropdown:Refresh(options)
+		local successCount = 0
+		for i = 1, sacAmount do
+			local ok = pcall(function()
+				Remotes:WaitForChild("TotemConfirm"):InvokeServer(selectedWeapon)
+			end)
+			if ok then successCount = successCount + 1 end
+			task.wait(0.08)
+		end
 
-        local count = #options - 1
-        WindUI:Notify({
-            Title = "Weapons Refreshed",
-            Content = count .. (count == 1 and " weapon" or " weapons") .. " loaded",
-            Duration = 4
-        })
-    end
+		WindUI:Notify({
+			Title = "Batch Done",
+			Content = successCount .. "/" .. sacAmount .. " succeeded",
+			Duration = 6
+		})
 
-    -- Perform 25 sacrifices
-    local function do25Sacrifices()
-        if not selectedWeapon or selectedWeapon == "None" then
-            WindUI:Notify({Title = "No Weapon Selected", Content = "Choose a weapon first", Duration = 4})
-            return false
-        end
+		return successCount == sacAmount
+	end
 
-        WindUI:Notify({
-            Title = "Sacrificing",
-            Content = "Sending 25× " .. selectedWeapon .. "...",
-            Duration = 5
-        })
+	local function startAutoSacrifice()
+		if autoSacThread then return end
+		autoSacEnabled = true
 
-        local successCount = 0
-        for i = 1, 25 do
-            local ok = pcall(function()
-                Remotes:WaitForChild("TotemConfirm"):InvokeServer(selectedWeapon)
-            end)
-            if ok then successCount = successCount + 1 end
-            task.wait(0.08)
-        end
+		autoSacThread = task.spawn(function()
+			WindUI:Notify({
+				Title = "Auto Totem Sacrifice",
+				Content = "Activated — runs every " .. sacIntervalMinutes .. " min",
+				Duration = 5
+			})
 
-        WindUI:Notify({
-            Title = "Batch Done",
-            Content = successCount .. "/25 succeeded",
-            Duration = 6
-        })
+			while autoSacEnabled do
+				local now = os.time()
+				local intervalSeconds = sacIntervalMinutes * 60
+				if now - lastSacTime >= intervalSeconds then
+					if doSacrifices() then
+						lastSacTime = now
+					else
+						lastSacTime = now - (intervalSeconds - 300)  -- retry 5 min sooner on fail
+					end
+				end
+				task.wait(60)
+			end
+			autoSacThread = nil
+		end)
+	end
 
-        return successCount == 25
-    end
+	local function stopAutoSacrifice()
+		autoSacEnabled = false
+		if autoSacThread then
+			task.cancel(autoSacThread)
+			autoSacThread = nil
+		end
+		WindUI:Notify({ Title = "Auto Sacrifice", Content = "Stopped", Duration = 3 })
+	end
 
-    local function startAutoSacrifice()
-        if autoSacThread then return end
-        autoSacEnabled = true
+	AutoSacSection:Button({
+		Title = "Sacrifice Now",
+		Desc = "Manually trigger one batch immediately",
+		Color = Color3.fromHex("#30a2ff"),
+		Callback = function()
+			task.spawn(doSacrifices)
+		end
+	})
 
-        autoSacThread = task.spawn(function()
-            WindUI:Notify({
-                Title = "Auto Totem Sacrifice",
-                Content = "Activated — runs 25× every ~61 min",
-                Duration = 5.5
-            })
+	AutoSacSection:Space()
 
-            while autoSacEnabled do
-                local now = os.time()
-                if now - lastSacTime >= 3660 then
-                    if do25Sacrifices() then
-                        lastSacTime = now
-                    else
-                        lastSacTime = now - 300  -- retry sooner if failed
-                    end
-                end
-                task.wait(60)
-            end
-            autoSacThread = nil
-        end)
-    end
-
-    local function stopAutoSacrifice()
-        autoSacEnabled = false
-        if autoSacThread then
-            task.cancel(autoSacThread)
-            autoSacThread = nil
-        end
-        WindUI:Notify({Title = "Auto Sacrifice", Content = "Stopped", Duration = 3})
-    end
-
-    -- UI Elements – Refresh AFTER dropdown
-    AutoSacSection:Button({
-        Title = "Refresh Weapon Names",
-        Color = Color3.fromHex("#30a2ff"),
-        Callback = refreshWeaponNames
-    })
-
-    AutoSacSection:Space()
-
-    AutoSacSection:Toggle({
-        Title = "Auto Sacrifice",
-        Flag = "Auto_Sacrifice",
-    
-        Desc = "Sacrifices selected weapon 25 times every 61 minutes.",
-        Value = false,
-        Callback = function(state)
-            if state then
-                startAutoSacrifice()
-            else
-                stopAutoSacrifice()
-            end
-        end
-    })
+	AutoSacSection:Toggle({
+		Title = "Auto Sacrifice",
+		Flag = "Auto_Sacrifice",
+		Desc = "Automatically sacrifices on the set interval.",
+		Value = false,
+		Callback = function(state)
+			if state then
+				startAutoSacrifice()
+			else
+				stopAutoSacrifice()
+			end
+		end
+	})
 end
 
 
@@ -2740,16 +2731,29 @@ do -- config panel
         local AllConfigs = ConfigManager:AllConfigs()
         local DefaultValue = table.find(AllConfigs, ConfigName) and ConfigName or nil
 
-        local AllConfigsDropdown = ConfigTab:Dropdown({
-            Title = "All Configs",
-            Desc = "Select existing configs",
-            Values = AllConfigs,
-            Value = DefaultValue,
-            Callback = function(value)
-                ConfigName = value
-                ConfigNameInput:Set(value)
-            end
-        })
+		local configToggleSection = ConfigTab:Section({ Title = "All Configs" })
+		local configToggles = {}
+
+		local function rebuildConfigToggles()
+			configToggles = {}
+			for _, cfg in ipairs(ConfigManager:AllConfigs()) do
+				configToggles[cfg] = configToggleSection:Toggle({
+					Title = cfg,
+					Value = (cfg == ConfigName),
+					Callback = function(v)
+						if v then
+							for otherCfg, toggle in pairs(configToggles) do
+								if otherCfg ~= cfg then toggle:Set(false) end
+							end
+							ConfigName = cfg
+							ConfigNameInput:Set(cfg)
+						end
+					end
+				})
+			end
+		end
+
+		rebuildConfigToggles()
 
         ConfigTab:Space()
 
@@ -2796,7 +2800,7 @@ do -- config panel
 
                 -- Refresh both dropdowns after saving
                 local fresh = ConfigManager:AllConfigs()
-                AllConfigsDropdown:Refresh(fresh)
+                rebuildConfigToggles()
 
                 local freshWithNone = {"None"}
                 for _, v in ipairs(fresh) do table.insert(freshWithNone, v) end
