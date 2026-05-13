@@ -127,7 +127,8 @@ do
     if ok then
         WindUI = result
     else 
-        WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+        local _version = "1.6.64-fix"
+        WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/" .. _version .. "/main.lua"))()
     end
 end
 
@@ -973,46 +974,19 @@ do
 
     local selectedPlayer = nil
 
-	-- Player toggles section
-	local playerToggleSection = MainTab:Section({ Title = "Select Player (CLICK ME)" })
-	local playerToggles = {}
-
-	local function rebuildPlayerToggles()
-		-- Clear old toggles (WindUI may not support dynamic removal cleanly,
-		-- but we track state ourselves)
-		playerToggles = {}
-		selectedPlayer = nil
-
-		for _, plr in ipairs(Players:GetPlayers()) do
-			local name = plr.Name
-			local display = string.format("%s (@%s)", plr.DisplayName or name, name)
-			
-			playerToggles[name] = playerToggleSection:Toggle({
-				Title = display,
-				Value = false,
-				Callback = function(v)
-					if v then
-						-- Deselect others
-						for otherName, toggle in pairs(playerToggles) do
-							if otherName ~= name then
-								toggle:Set(false)
-							end
-						end
-						selectedPlayer = name
-					else
-						if selectedPlayer == name then
-							selectedPlayer = nil
-						end
-					end
-				end
-			})
-		end
-	end
-
-	rebuildPlayerToggles()
-
-	Players.PlayerAdded:Connect(function() task.delay(0.5, rebuildPlayerToggles) end)
-	Players.PlayerRemoving:Connect(function() task.delay(0.3, rebuildPlayerToggles) end)
+    local PlayerDropdown = MainTab:Dropdown({
+        Title = "Select Player",
+        Values = formattedPlayers,
+        Value = formattedPlayers[1] or nil,
+        Callback = function(value)
+            if not value then
+                selectedPlayer = nil
+                return
+            end
+            local username = value:match("%(@([^)]+)%)")
+            selectedPlayer = username or value  -- fallback if regex fails
+        end
+    })
 
     -- Real-time updates
     Players.PlayerAdded:Connect(function()
@@ -1098,13 +1072,15 @@ do
             killAuraEnabled = v
             if killAuraEnabled then
                 if not killAuraThread then
-					killAuraThread = task.spawn(function()
-						while killAuraEnabled do
-							runKillAura()
-							task.wait(killAuraDelay)
-						end
-						killAuraThread = nil
-					end)
+                    killAuraThread = task.spawn(function()
+                        while killAuraEnabled do
+                            if selectedPlayer then -- optional: only run if someone is selected
+                                runKillAura()
+                            end
+                            task.wait(killAuraDelay)
+                        end
+                        killAuraThread = nil
+                    end)
                 end
             else
             -- thread stops automatically via while condition
@@ -1135,39 +1111,23 @@ do
         Title = "Knockdown",
     })
 
-	local selectedPlayers = {}
-
     -- Multi-select dropdown for players
-	local multiPlayerSection = MainTab:Section({ Title = "Select Players (Knock)", Opened = true })
-	local multiPlayerToggles = {}
-
-	local function rebuildMultiPlayerToggles()
-		multiPlayerToggles = {}
-		selectedPlayers = {}
-
-		for _, plr in ipairs(Players:GetPlayers()) do
-			local name = plr.Name
-			local display = string.format("%s (@%s)", plr.DisplayName or name, name)
-
-			multiPlayerToggles[name] = multiPlayerSection:Toggle({
-				Title = display,
-				Value = false,
-				Callback = function(v)
-					if v then
-						table.insert(selectedPlayers, name)
-					else
-						local idx = table.find(selectedPlayers, name)
-						if idx then table.remove(selectedPlayers, idx) end
-					end
-				end
-			})
-		end
-	end
-
-	rebuildMultiPlayerToggles()
-
-	Players.PlayerAdded:Connect(function() task.delay(0.5, rebuildMultiPlayerToggles) end)
-	Players.PlayerRemoving:Connect(function() task.delay(0.3, rebuildMultiPlayerToggles) end)
+    local selectedPlayers = {}
+    local MultiPlayerDropdown = MainTab:Dropdown({
+        Title = "Select Multiple Players",
+        Values = formattedPlayers,
+        Multi = true,
+        Value = {},
+        Callback = function(values)
+            selectedPlayers = {}
+            for _, value in ipairs(values) do
+                local username = value:match("%(@([^)]+)%)")
+                if username then
+                    table.insert(selectedPlayers, username)
+                end
+            end
+        end
+    })
 
     MainTab:Space()
 
@@ -1217,8 +1177,6 @@ do
     -- Boss list for dropdown (entity names)
     local bossNames = {"DIO", "Funny Valentine", "Dio Brando"}
     table.sort(bossNames)  --sort alphabetically
-
-	local selectedBosses = {}  -- ADD THIS
 
     -- Example boss buttons (add your logic as needed)
     BossSection:Button({
@@ -1341,24 +1299,16 @@ do
     })
 
     -- Multi-select dropdown for bosses
-	local bossToggleSection = BossSection2:Section({ Title = "Select Bosses", Opened = true })
-
-	for _, bossName in ipairs(bossNames) do
-		bossToggleSection:Toggle({
-			Title = bossName,
-			Value = false,
-			Callback = function(v)
-				if v then
-					if not table.find(selectedBosses, bossName) then
-						table.insert(selectedBosses, bossName)
-					end
-				else
-					local idx = table.find(selectedBosses, bossName)
-					if idx then table.remove(selectedBosses, idx) end
-				end
-			end
-		})
-	end
+    local selectedBosses = {}
+    BossSection2:Dropdown({
+        Title = "Select Bosses",
+        Values = bossNames,
+        Multi = true,
+        Value = {},
+        Callback = function(values)
+            selectedBosses = values  -- Table of selected boss names, e.g., {"DIO", "Dio Brando"}
+        end
+    })
 
     BossSection2:Space()
 
@@ -1512,11 +1462,6 @@ do
         Border = true,
     })
 
-	local allNotifyItems = {}
-	for _, v in ipairs(itemNames) do table.insert(allNotifyItems, v) end
-	table.sort(allNotifyItems, function(a, b) return a < b end)
-	local selectedNotifyItems = {}
-
     local espToggle = ESPTab:Toggle({
         Title = "Enable ESP",
         Flag = "Items_ESP_Enabled",
@@ -1532,24 +1477,20 @@ do
     ESPTab:Space()
 
     -- Multi-dropdown for notify items (all items, nothing selected by default)
-	local itemToggleSection = ESPTab:Section({ Title = "Select Items", Opened = true })
-
-	for _, itemName in ipairs(allNotifyItems) do
-		itemToggleSection:Toggle({
-			Title = itemName,
-			Value = false,
-			Callback = function(v)
-				if v then
-					if not table.find(selectedNotifyItems, itemName) then
-						table.insert(selectedNotifyItems, itemName)
-					end
-				else
-					local idx = table.find(selectedNotifyItems, itemName)
-					if idx then table.remove(selectedNotifyItems, idx) end
-				end
-			end
-		})
-	end
+    local allNotifyItems = {}
+    for _, v in ipairs(itemNames) do table.insert(allNotifyItems, v) end
+    table.sort(allNotifyItems, function(a, b) return a < b end)
+    local selectedNotifyItems = {}
+    ESPTab:Dropdown({
+        Title = "Select Items",
+        Flag = "Items_NotifyList",
+        Values = allNotifyItems,
+        Multi = true,
+        Value = {},
+        Callback = function(values)
+            selectedNotifyItems = values
+        end
+    })
 
     -- Notify Items Toggle
     local notifyEnabled = false
@@ -1777,24 +1718,19 @@ do
     ESPTab:Space()
 
     -- Items to EXCLUDE from selling (multi-select dropdown)
-	local excludeToggleSection = ESPTab:Section({ Title = "Exclude from Selling" })
+    local excludedSellItems = {}   -- will store names like {"Arrow", "Shiny Gem"}
 
-	for _, itemName in ipairs(itemNames) do
-		excludeToggleSection:Toggle({
-			Title = itemName,
-			Value = false,
-			Callback = function(v)
-				if v then
-					if not table.find(excludedSellItems, itemName) then
-						table.insert(excludedSellItems, itemName)
-					end
-				else
-					local idx = table.find(excludedSellItems, itemName)
-					if idx then table.remove(excludedSellItems, idx) end
-				end
-			end
-		})
-	end
+    ESPTab:Dropdown({
+        Title = "Exclude from Selling",
+        Flag = "excluded_sell_items",
+        Desc = "Selected items will NOT be sold",
+        Values = itemNames,            -- same list as ESP uses
+        Multi = true,
+        Value = {},                    -- starts empty
+        Callback = function(values)
+            excludedSellItems = values   -- table of selected names
+        end
+    })
 
     ESPTab:Space()
 
@@ -2343,48 +2279,48 @@ do
     -- ────────────────────────────────────────────────
     -- Dropdown - Target Stands
     -- ────────────────────────────────────────────────
-	local standToggleSection = StandAutomation:Section({ Title = "Target Stands", Opened = true })
+    StandAutomation:Dropdown({
+        Title = "Target Stands",
+        Desc = "Select stands you want to stop farming on.",
+        Values = dropdownValues,
+        Multi = true,
+        Value = {},
+        Flag = "TargetStands",
+        Callback = function(selectedNames)
+            targetStandIds = {}
 
-	for _, standName in ipairs(dropdownValues) do
-		standToggleSection:Toggle({
-			Title = standName,
-			Value = false,
-			Callback = function(v)
-				-- Find the ID for this stand
-				local standId = nil
-				for id, dbName in pairs(standDatabase) do
-					if dbName == standName then standId = id break end
-				end
-				if not standId then return end
+            for _, name in ipairs(selectedNames) do
+                for id, dbName in pairs(standDatabase) do
+                    if dbName == name then
+                        table.insert(targetStandIds, id)
+                        break
+                    end
+                end
+            end
 
-				if v then
-					if not table.find(targetStandIds, standId) then
-						table.insert(targetStandIds, standId)
-					end
-				else
-					local idx = table.find(targetStandIds, standId)
-					if idx then table.remove(targetStandIds, idx) end
-				end
-
-				-- Keep the same post-callback notify logic
-				WindUI:Notify({
-					Title = "Stand Farm",
-					Content = #targetStandIds > 0
-						and ("Targets: " .. #targetStandIds .. " selected")
-						or "No stands selected!",
-					Duration = 2.5
-				})
-
-				if autoStandFarmEnabled and isSuccess() then
-					autoStandFarmEnabled = false
-					if autoStandThread then
-						task.cancel(autoStandThread)
-						autoStandThread = nil
-					end
-				end
-			end
-		})
-	end
+            WindUI:Notify({
+                Title = "Stand Farm",
+                Content = #targetStandIds > 0 
+                    and ("Targets updated: " .. #targetStandIds .. " stands selected")
+                    or "No valid stands selected!",
+                Duration = 3.5
+            })
+            
+            -- Check if running and now success with new targets
+            if autoStandFarmEnabled and isSuccess() then
+                autoStandFarmEnabled = false
+                if autoStandThread then
+                    task.cancel(autoStandThread)
+                    autoStandThread = nil
+                end
+                WindUI:Notify({
+                    Title = "Stand Farm",
+                    Content = "Targets changed - current stand now matches, stopping.",
+                    Duration = 3
+                })
+            end
+        end
+    })
 
     StandAutomation:Toggle({
         Title = "Auto Store Stand",
@@ -3021,30 +2957,18 @@ if not game:GetService("RunService"):IsStudio() then
         local AllConfigs = ConfigManager:AllConfigs()
         local DefaultValue = table.find(AllConfigs, ConfigName) and ConfigName or nil
 
-		local configToggleSection = ConfigTab:Section({ Title = "Select Config", Opened = true })
-		local configToggles = {}
-
-		local function rebuildConfigToggles()
-			configToggles = {}
-			for _, cfg in ipairs(ConfigManager:AllConfigs()) do
-				configToggles[cfg] = configToggleSection:Toggle({
-					Title = cfg,
-					Value = (cfg == ConfigName),
-					Callback = function(v)
-						if v then
-							-- Deselect others
-							for otherCfg, toggle in pairs(configToggles) do
-								if otherCfg ~= cfg then toggle:Set(false) end
-							end
-							ConfigName = cfg
-							ConfigNameInput:Set(cfg)
-						end
-					end
-				})
-			end
-		end
-
-		rebuildConfigToggles()
+        local AllConfigsDropdown = ConfigTab:Dropdown({
+            Title = "All Configs",
+            Desc = "Select existing configs",
+            Values = AllConfigs,
+            Value = DefaultValue,
+            Callback = function(value)
+                ConfigName = value
+                ConfigNameInput:Set(value)
+                
+                AutoLoadToggle:Set(ConfigManager:GetConfig(ConfigName).AutoLoad or false)
+            end
+        })
 
         ConfigTab:Space()
 
@@ -3062,7 +2986,7 @@ if not game:GetService("RunService"):IsStudio() then
                     })
                 end
                 
-                rebuildConfigToggles()
+                AllConfigsDropdown:Refresh(ConfigManager:AllConfigs())
             end
         })
 
