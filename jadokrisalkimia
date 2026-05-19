@@ -479,7 +479,7 @@ local lastLootScan = 0
 RunService.Heartbeat:Connect(function()
     if not autoLootEnabled then return end
     local now = tick()
-    if now - lastLootScan < 0.5 then return end -- scan every 0.5s
+    if now - lastLootScan < 0.5 then return end
     lastLootScan = now
 
     local Drops = workspace:FindFirstChild("Drops")
@@ -490,11 +490,17 @@ RunService.Heartbeat:Connect(function()
             if item:IsA("Vector3Value") then
                 local id = item.Name
                 if not pickedLoot[id] then
-                    pickedLoot[id] = true
-                    pcall(function()
+                    local ok = pcall(function()
                         LootRemote:FireServer(unpack({"pick", id}))
-                        print("Picked loot:", id)
                     end)
+                    if ok then
+                        -- Only mark as picked if item is actually gone
+                        task.delay(0.5, function()
+                            if not item.Parent then
+                                pickedLoot[id] = true
+                            end
+                        end)
+                    end
                 end
             end
         end
