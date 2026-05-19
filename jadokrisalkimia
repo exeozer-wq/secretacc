@@ -110,7 +110,7 @@ local Window = WindUI:CreateWindow({
 
 -- Final theme enforcement
 task.delay(0.1, function()
-    local desired = "Crimson"   -- or "Crimson", "Midnight", etc.
+    local desired = "Amber"   -- or "Crimson", "Midnight", etc.
     pcall(function()
         WindUI:SetTheme(desired)
     end)
@@ -371,9 +371,7 @@ local autoFarmEnabled = false
 local autoFarmConnection = nil
 local currentFarmTarget = nil
 local lastFarmAtk = 0
-
-
-
+local farmExcludedIDs = {}
 
 local autoChestEnabled = false
 local chestfolderName = "\229\174\162\230\136\183\231\171\175\229\174\157\231\174\177"
@@ -796,7 +794,10 @@ end
 local function isTargetAlive(mob)
     if not mob or not mob.Parent then return false end
     local humanoid = mob:FindFirstChildOfClass("Humanoid")
-    return humanoid and humanoid.Health > 0
+    if not humanoid or humanoid.Health <= 0 then return false end
+    local mobID = tostring(mob:GetAttribute("ID"))
+    if table.find(farmExcludedIDs, mobID) then return false end
+    return true
 end
 
 local function getAliveMob()
@@ -804,7 +805,10 @@ local function getAliveMob()
         local humanoid = mob:FindFirstChildOfClass("Humanoid")
         local hrp = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
         if humanoid and humanoid.Health > 0 and hrp then
-            return mob
+            local mobID = tostring(mob:GetAttribute("ID"))
+            if not table.find(farmExcludedIDs, mobID) then
+                return mob
+            end
         end
     end
     return nil
@@ -1174,7 +1178,7 @@ do
 
     MainTab:Toggle({
         Title = "Insta Kill Aura",
-        Desc = "Instantly kills the mobs. (EQUIP WAND)",
+        Desc = "Doesn't work on plants. (EQUIP WAND)",
 		Flag = "InstaKillAuraToggleFlag",
         Value = false,
         Callback = function(value)
@@ -1221,6 +1225,51 @@ do
 				startAutoFarm()
 			else
 				stopAutoFarm()
+			end
+		end
+	})
+
+	MainTab:Dropdown({
+		Flag = "AutoFarmExclude",
+		Title = "Exclude Mobs",
+		Desc = "Selected mobs will be ignored by autofarm",
+		Multi = true,
+		Values = {
+			"Pickaxe Dwarf",
+			"Warhammer Dwarf",
+			"Knife Goblin",
+			"Archer Goblin",
+			"Dwarf King",
+			"Mutant Warhammer Dwarf",
+			"Mutant Archer Goblin",
+			"Blueberry Bush",
+			"Mushroom Cluster",
+			"Bird's Nest",
+			"Large Blueberry Bush",
+			"The Big Mushroom Group",
+			"Big Bird's Nest",
+		},
+		Value = {},
+		Callback = function(selected)
+			local nameToID = {
+				["Pickaxe Dwarf"]          = "5000001",
+				["Warhammer Dwarf"]        = "5000002",
+				["Knife Goblin"]           = "5000004",
+				["Archer Goblin"]          = "5000005",
+				["Dwarf King"]             = "5000006",
+				["Mutant Warhammer Dwarf"] = "5000007",
+				["Mutant Archer Goblin"]   = "5000008",
+				["Blueberry Bush"]         = "5001001",
+				["Mushroom Cluster"]       = "5001002",
+				["Bird's Nest"]            = "5001003",
+				["Large Blueberry Bush"]   = "5001004",
+				["The Big Mushroom Group"] = "5001005",
+				["Big Bird's Nest"]        = "5001006",
+			}
+			farmExcludedIDs = {}
+			for _, name in ipairs(selected) do
+				local id = nameToID[name]
+				if id then table.insert(farmExcludedIDs, id) end
 			end
 		end
 	})
