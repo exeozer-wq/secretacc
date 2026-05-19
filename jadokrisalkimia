@@ -352,6 +352,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 local Remote = ReplicatedStorage:WaitForChild("Msg"):WaitForChild("RemoteEvent"):WaitForChild("ReleaseGroupSkill")
+local EquipRemote = ReplicatedStorage:WaitForChild("Msg"):WaitForChild("RemoteFunction"):WaitForChild("RemoteFunction")
 local Monster = workspace.Monster
 
 local autoAscendEnabled = false
@@ -366,6 +367,13 @@ local xpEnabled = false
 local autoClaimEnabled = false
 local autoRetakeEnabled = false
 local selectedQuests = {}
+local autoFarmEnabled = false
+local autoFarmConnection = nil
+local currentFarmTarget = nil
+local lastFarmAtk = 0
+
+
+
 
 local autoChestEnabled = false
 local chestfolderName = "\229\174\162\230\136\183\231\171\175\229\174\157\231\174\177"
@@ -760,6 +768,89 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+
+
+-- Autofarm
+
+local function farmFireRemote(mob)
+    Remote:FireServer(unpack({
+        4,
+        {
+            targetCF = mob.PrimaryPart and mob.PrimaryPart.CFrame or CFrame.new(),
+            moveDirectionStr = "Forward",
+            clientPredictCastId = game:GetService("HttpService"):GenerateGUID(false):upper(),
+            characterType = "Player",
+            releaseCF = mob.PrimaryPart and mob.PrimaryPart.CFrame * CFrame.new(0, 30, 0) or CFrame.new(),
+            characterId = LocalPlayer.UserId,
+            trackTargetId = mob.Name,
+        }
+    }))
+end
+
+local function equipWand()
+    pcall(function()
+        EquipRemote:InvokeServer("\229\136\135\230\141\162\230\137\139\230\140\129\231\137\169\229\147\129", 1042)
+    end)
+end
+
+local function isTargetAlive(mob)
+    if not mob or not mob.Parent then return false end
+    local humanoid = mob:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
+
+local function getAliveMob()
+    for _, mob in ipairs(Monster:GetChildren()) do
+        local humanoid = mob:FindFirstChildOfClass("Humanoid")
+        local hrp = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
+        if humanoid and humanoid.Health > 0 and hrp then
+            return mob
+        end
+    end
+    return nil
+end
+
+local function startAutoFarm()
+    if autoFarmConnection then return end
+    equipWand()
+
+    autoFarmConnection = RunService.Heartbeat:Connect(function()
+        if not autoFarmEnabled then return end
+
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        if not isTargetAlive(currentFarmTarget) then
+            currentFarmTarget = getAliveMob()
+            if not currentFarmTarget then return end
+            equipWand()
+        end
+
+        local mobHRP = currentFarmTarget:FindFirstChild("HumanoidRootPart") or currentFarmTarget.PrimaryPart
+        if not mobHRP then
+            currentFarmTarget = nil
+            return
+        end
+
+        hrp.CFrame = mobHRP.CFrame * CFrame.new(0, 30, 0)
+
+		local now = tick()
+		if now - lastFarmAtk >= 0.1 then
+			lastFarmAtk = now
+			pcall(farmFireRemote, currentFarmTarget)
+		end
+    end)
+end
+
+local function stopAutoFarm()
+    if autoFarmConnection then
+        autoFarmConnection:Disconnect()
+        autoFarmConnection = nil
+    end
+    currentFarmTarget = nil
+end
+
 -----------------------------------------------------------------SECONDARY FUNCTIONS START FROM HERE----------------------------
 
 
@@ -775,91 +866,94 @@ local jumpActive = false
 local currentWalkSpeed = 16
 local currentJumpPower = 50
 
-local speedConnection = nil
-
 local DEFAULT_WALKSPEED = 16
 local DEFAULT_JUMPPOWER = 50
 
-local function applySpeedAndJump()
+local wsLoopConn = nil
+local wsCharConn = nil
+local jpLoopConn = nil
+local jpCharConn = nil
+
+local function applyWalkSpeed()
     local char = player.Character
-    if not char then return end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-
-    humanoid.UseJumpPower = true
-
-    if speedActive then
-        humanoid.WalkSpeed = currentWalkSpeed
-    else
-        humanoid.WalkSpeed = DEFAULT_WALKSPEED
-    end
-
-    if jumpActive then
-        humanoid.JumpPower = currentJumpPower
-    else
-        humanoid.JumpPower = DEFAULT_JUMPPOWER
-        -- Optional: if you want exact default height behavior when off, set UseJumpPower = false here
-        humanoid.UseJumpPower = false
+    local human = char and char:FindFirstChildOfClass("Humanoid")
+    if human then
+        human.WalkSpeed = speedActive and currentWalkSpeed or DEFAULT_WALKSPEED
     end
 end
 
-local function startLoop()
-    if speedConnection then return end
-
-    speedConnection = RunService.Stepped:Connect(function()  -- Use Stepped instead of Heartbeat (runs earlier in frame)
-        applySpeedAndJump()
-    end)
-
-    -- Handle respawn
-    player.CharacterAdded:Connect(function(char)
-        local humanoid = char:WaitForChild("Humanoid")
-        -- Small delay to let game set defaults first
-        task.wait()
-        applySpeedAndJump()
-    end)
-end
-
-local function stopLoop()
-    if speedConnection then
-        speedConnection:Disconnect()
-        speedConnection = nil
+local function applyJumpPower()
+    local char = player.Character
+    local human = char and char:FindFirstChildOfClass("Humanoid")
+    if human then
+        human.UseJumpPower = true
+        human.JumpPower = jumpActive and currentJumpPower or DEFAULT_JUMPPOWER
+        if not jumpActive then human.UseJumpPower = false end
     end
 end
 
--- Slider callbacks
+local function startWalkSpeedLoop()
+    local char = player.Character
+    local human = char and char:FindFirstChildOfClass("Humanoid")
+    if not human then return end
+    applyWalkSpeed()
+    wsLoopConn = (wsLoopConn and wsLoopConn:Disconnect() and false)
+        or human:GetPropertyChangedSignal("WalkSpeed"):Connect(applyWalkSpeed)
+    wsCharConn = (wsCharConn and wsCharConn:Disconnect() and false)
+        or player.CharacterAdded:Connect(function(newChar)
+            local newHuman = newChar:WaitForChild("Humanoid")
+            applyWalkSpeed()
+            wsLoopConn = (wsLoopConn and wsLoopConn:Disconnect() and false)
+                or newHuman:GetPropertyChangedSignal("WalkSpeed"):Connect(applyWalkSpeed)
+        end)
+end
+
+local function stopWalkSpeedLoop()
+    wsLoopConn = (wsLoopConn and wsLoopConn:Disconnect() and false) or nil
+    wsCharConn = (wsCharConn and wsCharConn:Disconnect() and false) or nil
+    applyWalkSpeed()
+end
+
+local function startJumpPowerLoop()
+    local char = player.Character
+    local human = char and char:FindFirstChildOfClass("Humanoid")
+    if not human then return end
+    applyJumpPower()
+    jpLoopConn = (jpLoopConn and jpLoopConn:Disconnect() and false)
+        or human:GetPropertyChangedSignal("JumpPower"):Connect(applyJumpPower)
+    jpCharConn = (jpCharConn and jpCharConn:Disconnect() and false)
+        or player.CharacterAdded:Connect(function(newChar)
+            local newHuman = newChar:WaitForChild("Humanoid")
+            applyJumpPower()
+            jpLoopConn = (jpLoopConn and jpLoopConn:Disconnect() and false)
+                or newHuman:GetPropertyChangedSignal("JumpPower"):Connect(applyJumpPower)
+        end)
+end
+
+local function stopJumpPowerLoop()
+    jpLoopConn = (jpLoopConn and jpLoopConn:Disconnect() and false) or nil
+    jpCharConn = (jpCharConn and jpCharConn:Disconnect() and false) or nil
+    applyJumpPower()
+end
+
 function setWalkSpeed(value)
     currentWalkSpeed = value
-    if speedActive then
-        applySpeedAndJump()  -- Instant apply
-    end
+    if speedActive then applyWalkSpeed() end
 end
 
 function setJumpPower(value)
     currentJumpPower = value
-    if jumpActive then
-        applySpeedAndJump()
-    end
+    if jumpActive then applyJumpPower() end
 end
 
--- Toggle callbacks
 function setSpeedEnabled(state)
     speedActive = state
-    if state or jumpActive then
-        startLoop()
-    else
-        stopLoop()
-    end
-    applySpeedAndJump()  -- Apply reset immediately when turning off
+    if state then startWalkSpeedLoop() else stopWalkSpeedLoop() end
 end
 
 function setJumpEnabled(state)
     jumpActive = state
-    if state or speedActive then
-        startLoop()
-    else
-        stopLoop()
-    end
-    applySpeedAndJump()
+    if state then startJumpPowerLoop() else stopJumpPowerLoop() end
 end
 
 
@@ -1068,6 +1162,7 @@ do
 
 	MainTab:Toggle({
 		Title = "Auto XP",
+		Flag = "AutoXPFlag",
 		Desc = "mindlessly spams attacks and skills for XP",
 		Value = false,
 		Callback = function(value)
@@ -1080,6 +1175,7 @@ do
     MainTab:Toggle({
         Title = "Insta Kill Aura",
         Desc = "Instantly kills the mobs. (EQUIP WAND)",
+		Flag = "InstaKillAuraToggleFlag",
         Value = false,
         Callback = function(value)
             kaEnabled = value
@@ -1090,6 +1186,7 @@ do
     MainTab:Slider({
         Title = "Kill Aura Range",
         Desc = "Distance to start attacking mobs",
+		Flag = "InstaKillAuraSliderFlag",
         Step = 1,
         Value = {
             Min = 1,
@@ -1103,12 +1200,30 @@ do
 
     MainTab:Toggle({
         Title = "Auto Loot",
+		Flag = "AutoLootFlag",
         Desc = "Auto pick up dropped loot",
         Value = false,
         Callback = function(value)
             autoLootEnabled = value
         end
     })
+
+	MainTab:Space()
+
+	MainTab:Toggle({
+		Flag = "AutoFarm",
+		Title = "Auto Farm",
+		Desc = "Teleports above closest mob and attacks it",
+		Value = false,
+		Callback = function(value)
+			autoFarmEnabled = value
+			if value then
+				startAutoFarm()
+			else
+				stopAutoFarm()
+			end
+		end
+	})
 
     MainTab:Space()
 
@@ -1130,6 +1245,7 @@ do
 	for _, gp in ipairs(gamepasses) do
 		local val = GamePass:WaitForChild(gp.node)
 		MainTab:Toggle({
+			Flag = "Gamepass_" .. gp.node,  -- e.g. "Gamepass_BetterAlchemy"
 			Title = gp.title,
 			Desc = "Enable " .. gp.title .. " gamepass",
 			Value = val.Value == 1,
@@ -1156,6 +1272,7 @@ do
 
     AutomationTab:Toggle({
         Title = "Auto Chest",
+		Flag = "AutoChest_Flag",
         Desc = "Auto open chests when they spawn",
         Value = false,
         Callback = function(value)
@@ -1176,6 +1293,7 @@ do
 
     AutomationTab:Toggle({
         Title = "Auto Ascend",
+		Flag = "AutoAscendFlag",
         Desc = "Ascends automatically when level and coins are sufficient",
         Value = false,
         Callback = function(value)
@@ -1198,6 +1316,7 @@ do
 
 	AutomationTab:Dropdown({
 		Title = "Select Quests",
+		Flag = "QuestDropdownFlag",
 		Desc = "Choose which quests to automate",
 		Values = questNames,
 		Multi = true,
@@ -1209,6 +1328,7 @@ do
 
 	AutomationTab:Toggle({
 		Title = "Auto Claim Quest",
+		Flag = "AutoClaimQuestFlag",
 		Desc = "Claims quest automatically when completed",
 		Value = false,
 		Callback = function(value)
@@ -1231,6 +1351,7 @@ do
 
 	AutomationTab:Toggle({
 		Title = "Auto Retake Quest",
+		Flag = "AutoRetakeQuestFlag",
 		Desc = "Retakes selected quests after claiming",
 		Value = false,
 		Callback = function(value)
@@ -1287,6 +1408,7 @@ do
 
     PlayerTab:Toggle({
         Title = "Float",
+		Flag = "Float_Flag",
         Desc = "Jumping while floating up (E) or down (Q) might break float.",
         Callback = function(state)
             if state then
@@ -1302,6 +1424,7 @@ do
 
     PlayerTab:Toggle({
         Title = "Infinite Jump",
+		Flag = "InfJump_Flag",
         Callback = function(state)
             if state then
                 enableInfJump()
@@ -1316,6 +1439,7 @@ do
     -- WalkSpeed Toggle & Slider
     local WalkSpeedToggle = PlayerTab:Toggle({
         Title = "WalkSpeed",
+		Flag = "WSToggle_Flag",
         Desc = "Enable custom WalkSpeed",
         Callback = function(state)
             setSpeedEnabled(state)
@@ -1324,6 +1448,7 @@ do
 
     local WalkSpeedSlider = PlayerTab:Slider({
         Title = "WalkSpeed Value",
+		Flag = "WSSlider_Flag",
         Step = 1,
         Value = {
             Min = 16,
@@ -1340,6 +1465,7 @@ do
     -- JumpPower Toggle & Slider
     local JumpPowerToggle = PlayerTab:Toggle({
         Title = "JumpPower",
+		Flag = "JPToggle_Flag",
         Desc = "Enable custom JumpPower",
         Callback = function(state)
             setJumpEnabled(state)
@@ -1348,6 +1474,7 @@ do
 
     local JumpPowerSlider = PlayerTab:Slider({
         Title = "JumpPower Value",
+		Flag = "JPSlider_Flag",
         Step = 1,
         Value = {
             Min = 50,
