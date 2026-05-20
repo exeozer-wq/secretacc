@@ -1225,6 +1225,7 @@ do
 		Title = "Auto Farm",
 		Desc = "Teleports above closest mob and attacks it",
 		Value = false,
+		Locked = true,
 		Callback = function(value)
 			autoFarmEnabled = value
 			if value then
@@ -1238,6 +1239,7 @@ do
 	MainTab:Dropdown({
 		Flag = "AutoFarmExclude",
 		Title = "Exclude Mobs",
+		Locked = true,
 		Desc = "Selected mobs will be ignored by autofarm",
 		Multi = true,
 		Values = {
