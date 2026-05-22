@@ -592,36 +592,59 @@ end)
 local TalkFunc = ReplicatedStorage:WaitForChild("Msg"):WaitForChild("Function"):WaitForChild("TalkFunc")
 local QuestRemote = ReplicatedStorage:WaitForChild("Msg"):WaitForChild("RemoteEvent"):WaitForChild("RemoteEvent")
 
-local questData = {
-    ["Pickaxe Dwarf (15)"]  = { takeArg = "\228\187\187\229\138\1612", activeName = "任务2",  completedName = "任务10" },
-    ["Knife Goblin (15)"]   = { takeArg = "\228\187\187\229\138\1613", activeName = "任务3",  completedName = "任务11" },
-    ["Warhammer Dwarf (3)"] = { takeArg = "\228\187\187\229\138\1614", activeName = "任务4",  completedName = "任务12" },
-    ["Archer Goblin (3)"]   = { takeArg = "\228\187\187\229\138\1615", activeName = "任务5",  completedName = "任务13" },
-    ["Dwarf King"]          = { takeArg = "\228\187\187\229\138\1616", activeName = "任务6",  completedName = "任务14" },
-}
+local PLACE_OLD = 118821269826806
+local PLACE_NEW = 123914747443517
+local currentPlaceId = game.PlaceId
+
+local questData
+if currentPlaceId == PLACE_OLD then
+    questData = {
+        ["Pickaxe Dwarf (15)"]  = { takeArg = "\228\187\187\229\138\1612", activeName = "任务2",  completedName = "任务10" },
+        ["Knife Goblin (15)"]   = { takeArg = "\228\187\187\229\138\1613", activeName = "任务3",  completedName = "任务11" },
+        ["Warhammer Dwarf (3)"] = { takeArg = "\228\187\187\229\138\1614", activeName = "任务4",  completedName = "任务12" },
+        ["Archer Goblin (3)"]   = { takeArg = "\228\187\187\229\138\1615", activeName = "任务5",  completedName = "任务13" },
+        ["Dwarf King"]          = { takeArg = "\228\187\187\229\138\1616", activeName = "任务6",  completedName = "任务14" },
+    }
+elseif currentPlaceId == PLACE_NEW then
+    questData = {
+        ["Sword Orc (10)"]    = { takeArg = "\229\135\187\230\157\128\233\147\129\229\137\145\229\133\189\228\186\186", activeName = "\229\135\187\230\157\128\233\147\129\229\137\145\229\133\189\228\186\186", completedName = "\228\186\164\228\187\152\233\147\129\229\137\145\229\133\189\228\186\186" },
+        ["Bow Orc (10)"]      = { takeArg = "\229\135\187\230\157\128\229\188\147\231\174\173\229\133\189\228\186\186", activeName = "\229\135\187\230\157\128\229\188\147\231\174\173\229\133\189\228\186\186", completedName = "\228\186\164\228\187\152\229\188\147\231\174\173\229\133\189\228\186\186" },
+        ["Axe Orc (3)"]       = { takeArg = "\229\135\187\230\157\128\233\147\129\230\150\167\229\133\189\228\186\186", activeName = "\229\135\187\230\157\128\233\147\129\230\150\167\229\133\189\228\186\186", completedName = "\228\186\164\228\187\152\233\147\129\230\150\167\229\133\189\228\186\186" },
+        ["Orc Priest (3)"]    = { takeArg = "\229\135\187\230\157\128\229\133\189\228\186\186\231\165\173\231\165\128", activeName = "\229\135\187\230\157\128\229\133\189\228\186\186\231\165\173\231\165\128", completedName = "\228\186\164\228\187\152\229\133\189\228\186\186\231\165\173\231\165\128" },
+        ["Lava Behemoth (1)"] = { takeArg = "\229\135\187\230\157\128\231\134\148\229\178\169\229\183\168\229\133\189", activeName = "\229\135\187\230\157\128\231\134\148\229\178\169\229\183\168\229\133\189", completedName = "\228\186\164\228\187\152\231\134\148\229\178\169\229\183\168\229\133\189" },
+    }
+else
+    questData = {} -- unknown place, empty
+end
 
 local function hasQuestActive(data)
+    if not data.activeName and not data.completedName then return false end
     local Task = LocalPlayer:FindFirstChild("Task")
     if not Task then return false end
     return Task:FindFirstChild(data.activeName) ~= nil or Task:FindFirstChild(data.completedName) ~= nil
 end
 
 local function isQuestCompleted(data)
+    if not data.completedName then return false end
     local Task = LocalPlayer:FindFirstChild("Task")
     if not Task then return false end
     return Task:FindFirstChild(data.completedName) ~= nil
 end
 
 local function claimQuest()
+    local firstArg = currentPlaceId == PLACE_NEW 
+        and "\229\147\136\229\136\169\229\155\160\231\137\1851"
+        or  "\229\147\136\229\136\169\229\155\160\231\137\185"
+    local worldCode = currentPlaceId == PLACE_NEW and "20010100" or "10010100"
     pcall(function()
         QuestRemote:FireServer(unpack({
             "\232\167\166\229\143\145\232\129\138\229\164\169",
             {
-                "\229\147\136\229\136\169\229\155\160\231\137\185",
-                "10010100"
+                firstArg,
+                worldCode
             }
         }))
-        print("Quest claimed")
+        print("Quest claimed | firstArg:", firstArg, "| worldCode:", worldCode)
     end)
 end
 
