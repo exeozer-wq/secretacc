@@ -205,7 +205,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v2.0.4",
+        Title = "v2.0.5",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -1559,25 +1559,27 @@ do
         end
     end)
 
-    ESPTab:Button({
-        Title = "Grab Items",
-        Color = Color3.fromRGB(100, 255, 100),
-        Callback = function()
-            local player = game.Players.LocalPlayer
-            local character = player and (player.Character or player.CharacterAdded:Wait())
-            local hrp = character and character:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
-            for _, obj in ipairs(workspace:GetDescendants()) do
-                if isTargetItem(obj) then
-                    local part = getItemPart(obj)
-                    if part and part:IsA("BasePart") and isWithinMap(part.Position) then
-                        hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
-                        wait(0.5)
-                    end
-                end
-            end
-        end
-    })
+	ESPTab:Button({
+		Title = "Grab Items",
+		Color = Color3.fromRGB(100, 255, 100),
+		Callback = function()
+			local char = lp.Character or lp.CharacterAdded:Wait()
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			if not hrp then return end
+			for _, obj in ipairs(workspace:GetDescendants()) do
+				if isTargetItem(obj) then
+					local handle = obj:FindFirstChild("Handle")
+					if handle and isWithinMap(handle.Position) then
+						local ti = handle:FindFirstChildOfClass("TouchTransmitter")
+						if ti then
+							firetouchinterest(hrp, handle, 0)
+							firetouchinterest(hrp, handle, 1)
+						end
+					end
+				end
+			end
+		end
+	})
 
     ESPTab:Button({
         Title = "Grab Banknotes Only",
@@ -1600,31 +1602,27 @@ do
     })
 
     -- Grab Selected Items Button
-    ESPTab:Button({
-        Title = "Grab Selected Items",
-        Color = Color3.fromRGB(255, 180, 80),
-        Callback = function()
-            local player = game.Players.LocalPlayer
-            local character = player and (player.Character or player.CharacterAdded:Wait())
-            local hrp = character and character:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
-            for _, obj in ipairs(workspace:GetDescendants()) do
-                for _, itemName in ipairs(selectedNotifyItems) do
-                    if obj.Name == itemName then
-                        local part = getItemPart(obj)
-                        if part and part:IsA("BasePart") and isWithinMap(part.Position) then
-                            hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
-                            wait(0.5)
-                        end
-                    end
-                end
-            end
-            print("Selected items:")
-            for i, v in ipairs(selectedNotifyItems) do
-                print(i, v)
-            end
-        end
-    })
+	ESPTab:Button({
+		Title = "Grab Selected Items",
+		Color = Color3.fromRGB(255, 180, 80),
+		Callback = function()
+			local char = lp.Character or lp.CharacterAdded:Wait()
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			if not hrp then return end
+			for _, obj in ipairs(workspace:GetDescendants()) do
+				if table.find(selectedNotifyItems, obj.Name) then
+					local handle = obj:FindFirstChild("Handle")
+					if handle and isWithinMap(handle.Position) then
+						local ti = handle:FindFirstChildOfClass("TouchTransmitter")
+						if ti then
+							firetouchinterest(hrp, handle, 0)
+							firetouchinterest(hrp, handle, 1)
+						end
+					end
+				end
+			end
+		end
+	})
 
     local autoGrabSelectedEnabled = false
     local autoGrabSelectedThread = nil
@@ -1690,15 +1688,17 @@ do
                                             or obj.PrimaryPart
                                             or obj:FindFirstChildWhichIsA("BasePart", true)
                                     end
-
-                                    if part and part:IsA("BasePart") and isWithinMap(part.Position) then
-                                        hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
-                                        task.wait(0.4)
-                                    end
+									if part and part:IsA("BasePart") and isWithinMap(part.Position) then
+										local ti = part:FindFirstChildOfClass("TouchTransmitter")
+										if ti then
+											firetouchinterest(hrp, part, 0)
+											firetouchinterest(hrp, part, 1)
+										end
+									end
                                 end
                             end
 
-                            task.wait(1.5)
+                            task.wait(0.5)
                         end
 
                         autoGrabSelectedThread = nil
@@ -1808,21 +1808,23 @@ do
                                 end
                             end
 
-                            if #itemsToFarm > 0 then
-                                foundAny = true
-                                for _, part in ipairs(itemsToFarm) do
-                                    if not autoFarmEnabled then break end
-                                    
-                                    local hrp = game.Players.LocalPlayer.Character 
-                                        and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                                    if hrp then
-                                        hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
-                                        task.wait(0.4)  -- delay between teleports
-                                    end
-                                end
-                            end
+							if #itemsToFarm > 0 then
+								foundAny = true
+								local hrp = game.Players.LocalPlayer.Character
+									and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+								if hrp then
+									for _, part in ipairs(itemsToFarm) do
+										if not autoFarmEnabled then break end
+										local ti = part:FindFirstChildOfClass("TouchTransmitter")
+										if ti then
+											firetouchinterest(hrp, part, 0)
+											firetouchinterest(hrp, part, 1)
+										end
+									end
+								end
+							end
 
-                            -- If nothing found → wait and notify once
+							-- Always wait between scans to prevent crashing
                             if not foundAny then
                                 if autoFarmEnabled then
                                     WindUI:Notify({
@@ -1830,9 +1832,9 @@ do
                                         Duration = 4
                                     })
                                 end
-                                task.wait(2.5)  -- scan interval when idle
                             end
-                        end
+                            task.wait(3)
+                        end  -- ← closes: while autoFarmEnabled do
 
                         -- Cleanup when toggled off
                         autoFarmThread = nil
@@ -1840,13 +1842,12 @@ do
                             Title = "Auto Farm Stopped..",
                             Duration = 2
                         })
-                    end)
-                end
+                    end)  -- ← closes: task.spawn
+                end  -- ← closes: if not autoFarmThread
 
-                
             else
                 -- Toggle off → thread will stop naturally via while condition
-            end
+            end  -- ← closes: if enabled
         end
     })
 
@@ -2452,36 +2453,34 @@ do
 
                                 if not hasArrow then
                                     local arrowPart = nil
-                                    for _, obj in workspace:GetChildren() do
-                                        if obj.Name == "Arrow" then
-                                            local candidate = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
-                                            if candidate and isWithinMap(candidate.Position) then
-                                                arrowPart = candidate
-                                                break
-                                            end
-                                        end
-                                    end
+									for _, obj in workspace:GetDescendants() do
+										if obj.Name == "Arrow" then
+											local handle = obj:FindFirstChild("Handle")
+											local candidate = handle or (obj:IsA("BasePart") and obj) or obj:FindFirstChildWhichIsA("BasePart", true)
+											if candidate and isWithinMap(candidate.Position) then
+												arrowPart = candidate
+												break
+											end
+										end
+									end
 
-                                    if arrowPart then
-                                        local distance = (hrp.Position - arrowPart.Position).Magnitude
-                                        if distance > 8 and tick() - lastTeleport > TELEPORT_COOLDOWN then
-                                            pcall(function()
-                                                hrp.CFrame = arrowPart.CFrame + Vector3.new(0, 3.8, 0)
-                                            end)
-                                            lastTeleport = tick()
-                                            task.wait(0.45)
-                                        end
+									if arrowPart then
+										local ti = arrowPart:FindFirstChildOfClass("TouchTransmitter")
+										if ti then
+											firetouchinterest(hrp, arrowPart, 0)
+											firetouchinterest(hrp, arrowPart, 1)
+										end
 
-                                        local pickupStart = tick()
-                                        while tick() - pickupStart < 1.4 and not hasArrow and autoStandFarmEnabled do
-                                            hasArrow = lp.Backpack:FindFirstChild("Arrow") or lp.Character:FindFirstChild("Arrow")
-                                            task.wait(0.12)
-                                        end
+										local pickupStart = tick()
+										while tick() - pickupStart < 1.4 and not hasArrow and autoStandFarmEnabled do
+											hasArrow = lp.Backpack:FindFirstChild("Arrow") or lp.Character:FindFirstChild("Arrow")
+											task.wait(0.12)
+										end
 
-                                        if not hasArrow then
-                                            task.wait(0.8)
-                                            continue
-                                        end
+										if not hasArrow then
+											task.wait(0.8)
+											continue
+										end
                                     else
                                         task.wait(1.6)
                                         continue
@@ -2564,36 +2563,34 @@ do
 
                                 if not hasRoka then
                                     local rokaPart = nil
-                                    for _, obj in workspace:GetChildren() do
-                                        if obj.Name == "Rokakaka Fruit" then
-                                            local candidate = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
-                                            if candidate and isWithinMap(candidate.Position) then
-                                                rokaPart = candidate
-                                                break
-                                            end
-                                        end
-                                    end
+									for _, obj in workspace:GetDescendants() do
+										if obj.Name == "Rokakaka Fruit" then
+											local handle = obj:FindFirstChild("Handle")
+											local candidate = handle or (obj:IsA("BasePart") and obj) or obj:FindFirstChildWhichIsA("BasePart", true)
+											if candidate and isWithinMap(candidate.Position) then
+												rokaPart = candidate
+												break
+											end
+										end
+									end
 
-                                    if rokaPart then
-                                        local distance = (hrp.Position - rokaPart.Position).Magnitude
-                                        if distance > 8 and tick() - lastTeleport > TELEPORT_COOLDOWN then
-                                            pcall(function()
-                                                hrp.CFrame = rokaPart.CFrame + Vector3.new(0, 3.8, 0)
-                                            end)
-                                            lastTeleport = tick()
-                                            task.wait(0.45)
-                                        end
+									if rokaPart then
+										local ti = rokaPart:FindFirstChildOfClass("TouchTransmitter")
+										if ti then
+											firetouchinterest(hrp, rokaPart, 0)
+											firetouchinterest(hrp, rokaPart, 1)
+										end
 
-                                        local pickupStart = tick()
-                                        while tick() - pickupStart < 1.4 and not hasRoka and autoStandFarmEnabled do
-                                            hasRoka = lp.Backpack:FindFirstChild("Rokakaka Fruit") or lp.Character:FindFirstChild("Rokakaka Fruit")
-                                            task.wait(0.12)
-                                        end
+										local pickupStart = tick()
+										while tick() - pickupStart < 1.4 and not hasRoka and autoStandFarmEnabled do
+											hasRoka = lp.Backpack:FindFirstChild("Rokakaka Fruit") or lp.Character:FindFirstChild("Rokakaka Fruit")
+											task.wait(0.12)
+										end
 
-                                        if not hasRoka then
-                                            task.wait(0.8)
-                                            continue
-                                        end
+										if not hasRoka then
+											task.wait(0.8)
+											continue
+										end
                                     else
                                         task.wait(1.4)
                                         continue
@@ -2702,6 +2699,8 @@ do
 	MiscTab:Button({
 		Title = "Crash Players/Server",
 		Desc = "needs The World equipped",
+		Locked = true,
+		LockedTitle = "Patched.",
 		Callback = function()
 			for i = 1, 100000 do
 				game:GetService("ReplicatedStorage"):WaitForChild("TWSlamEffect"):FireServer()
