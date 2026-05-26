@@ -2473,34 +2473,15 @@ do
     })
 
     local WarningSection = DupeTab:Section({
-        Title = "WARNING - READ BEFORE USING",
-        Opened = false
+        Title = "DUPE/INFINITE SP",
+        Opened = true
     })
 
     WarningSection:Paragraph({
-        Title = "GAME BREAKING FEATURES",
+        Title = "PATCHED",
 		Locked = true,
-        Desc = "Don't blame me if you carelessly use these features and break your game."
+        Desc = "Unfortunately, these features have been patched.\n\nHowever, if you're interested in buying accounts with septillions of dupe swords which you can sell for trillions of skill points every ascend every day and still last you for lifetime for only 10$, you may contact me on discord.\n\n@onlyoneflaw"
     })
-
-    WarningSection:Paragraph({
-        Title = "BE WARY",
-		Locked = true,
-        Desc = "You can buy more swords than you can afford, causing your SP to go to negative; but you can not sell more than you have.\n",
-    })
-
-    WarningSection:Paragraph({
-        Title = "HOW TO DUPE",
-		Locked = true,
-        Desc = "1) Open dupe section and write the weapon type (Normal/Fusion) and name (Capitalize correctly). It is REQUIRED to have that weapon rolled already.\n2) Choose amount\n3) Save Settings\n4) Press Buy\n it will use the same amount of SP to buy the sword, which you would've gotten by selling the sword.",
-    })
-
-    WarningSection:Paragraph({
-        Title = "HOW TO GET INFINITE SP",
-		Locked = true,
-        Desc = "1) First farm kills so you can Ascend\n2) Buy the max amount of swords you can get - go to negative SPs\n3) Once you get thousands of swords duped - Ascend (Resets your SP)\n4) Then sell those swords.\n5) Enjoy your free SP",
-    })
-
 
 
     WarningSection:Space()
