@@ -1440,13 +1440,13 @@ do
                             })
 
                             -- SINGLE-TARGET LOOP (Funny Valentine Deflect handling + safe teleport)
+							isBusy = true
                             local attackStart = tick()
                             while autoBossFarmEnabled 
                                 and targetBoss.humanoid.Health > 0 
                                 and targetBoss.root.Parent 
                                 and (tick() - attackStart < 30)
                             do
-								if isBusy then task.wait(0.7) continue end
                                 -- SMOOTH FLOAT TO BOSS (normal position when not in deflect)
                                 pcall(function()
                                     playerHRP.CFrame = CFrame.new(targetBoss.root.Position + Vector3.new(0, 10, 0))
@@ -1489,10 +1489,12 @@ do
 
                                 task.wait(0.04)  -- fast loop rate
                             end
+							isBusy = false
                         end
 
                         autoBossFarmThread = nil
-                        WindUI:Notify({ Title = "Boss Farm Stopped", Duration = 2 })
+						isBusy = false  -- 👈 safety release
+                        WindUI:Notify({ Title = "Boss Farm Stopped", Duration = 2 })						
                     end)
                 end
             else
