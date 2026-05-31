@@ -899,6 +899,9 @@ local function runKillAura(overrideRange)
 end
 
 
+--variables
+local isTroweling = false
+
 ------ FUNCTIONS --------
 
 
@@ -1873,6 +1876,10 @@ do
                         WindUI:Notify({ Title = "Auto Sell", Content = "Selling..", Duration = 3 })
 
                         while autoSellEnabled do
+							if isTroweling then             -- 👈 pause sell during dig
+								task.wait(0.5)
+								continue
+							end
                             local soldThisCycle = 0
 
                             local backpack = game.Players.LocalPlayer:FindFirstChildOfClass("Backpack")
@@ -1904,7 +1911,8 @@ do
                                 if not autoSellEnabled then break end
                                 if tool:IsA("Tool") 
                                 and tool.Name ~= "Trowel" 
-                                and not table.find(excludedSellItems, tool.Name) then
+                                and not table.find(excludedSellItems, tool.Name)
+								and not isTroweling then
                                     humanoid:EquipTool(tool)
                                     task.wait(0.15)
 
@@ -2035,10 +2043,12 @@ do
                                 -- dig
                                 if trowel and trowel.Parent == character then
                                     print("[Trowel] Digging sand!")
+									isTroweling = true
                                     pcall(function()
                                         trowel:Activate()
                                     end)
                                     task.wait(2.9)
+									isTroweling = false
                                 else
                                     print("[Trowel] Skipped - trowel parent:", trowel and tostring(trowel.Parent) or "NIL")
                                 end
