@@ -100,6 +100,34 @@ end
 
 -- Run detection on load
 local lp = game:GetService("Players").LocalPlayer
+-- === Adonis Anti-Cheat Bypass (blocking) ===
+local NamecallInstanceDetector = nil
+for Index, Table in getgc(true) do
+    if typeof(Table) ~= "table" then continue end
+    if not rawget(Table, "namecallInstance") then continue end
+    for SecondIndex, StackContainerTable in Table do
+        if typeof(StackContainerTable) ~= "table" then continue end
+        for ThirdIndex, Upvalues in StackContainerTable do
+            if StackContainerTable[ThirdIndex] ~= "kick" then continue end
+            if typeof(StackContainerTable[ThirdIndex + 1]) ~= "function" then continue end
+            local FrozenDetectionFunction = StackContainerTable[ThirdIndex + 1]
+            for _, DetectionIdentifier in getconstants(FrozenDetectionFunction) do
+                if DetectionIdentifier == "namecallInstance" then
+                    NamecallInstanceDetector = FrozenDetectionFunction
+                end
+            end
+        end
+    end
+end
+if NamecallInstanceDetector then
+    hookfunction(NamecallInstanceDetector, function()
+        return false
+    end)
+    print("[Bypass] Adonis namecall detector hooked")
+else
+    print("[Bypass] Adonis detector not found")
+end
+
 if lp.Character then
     task.spawn(detectMap)
 else
@@ -205,7 +233,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v2.0.6.2",
+        Title = "v2.0.6.3",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -2097,15 +2125,18 @@ do
                                 end)
                                 task.wait(0.6)
 
-                                -- dig
-                                if trowel and trowel.Parent == character then
+								-- dig
+                                if trowel and trowel.Parent == character and trowel:IsA("Tool") then
                                     print("[Trowel] Digging sand!")
-									isBusy = true
-                                    pcall(function()
-                                        trowel:Activate()
-                                    end)
-                                    task.wait(2.9)
-									isBusy = false
+                                    local activateFunc = trowel.Activate
+                                    if typeof(activateFunc) == "function" then
+                                        isBusy = true
+                                        pcall(activateFunc, trowel)
+                                        task.wait(2.9)
+                                        isBusy = false
+                                    else
+                                        print("[Trowel] Activate is not a function, skipping")
+                                    end
                                 else
                                     print("[Trowel] Skipped - trowel parent:", trowel and tostring(trowel.Parent) or "NIL")
                                 end
