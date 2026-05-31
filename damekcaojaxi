@@ -206,7 +206,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v2.0.6",
+        Title = "v2.0.6.4",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -2113,19 +2113,19 @@ do
 									local activateFunc = trowel.Activate
 									if typeof(activateFunc) == "function" then
 										pcall(activateFunc, trowel)
-										task.wait(2.9)
+										task.wait(3.5)
 									else
 										print("[Trowel] Activate is not a function, skipping")
 									end
 								else
 									print("[Trowel] Skipped - trowel parent:", trowel and tostring(trowel.Parent) or "NIL")
 								end
-								isBusy = false  -- 👈 release AFTER everything is done
-
                                 task.wait(0.8)
                             end
 
+							isBusy = true   -- lock during between-cycle cooldown
                             task.wait(1.2)
+                            isBusy = false  -- now safe to sell
                         end
 
                         autoTrowelThread = nil
