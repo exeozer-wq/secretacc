@@ -205,7 +205,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v2.0.6.1",
+        Title = "v2.0.6.2",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -752,34 +752,31 @@ workspace.DescendantAdded:Connect(function(desc)
 
  -- SPECIAL FROG HANDLER (ONLY when itemGrabEnabled = true)
     if desc.Name == "Frog" and itemGrabEnabled then
-        task.delay(0.25, function()
-            if not desc or not desc.Parent or not desc:IsDescendantOf(workspace) then return end
+		task.delay(0.25, function()
+			if not desc or not desc.Parent or not desc:IsDescendantOf(workspace) then return end
 
-            local lp = game.Players.LocalPlayer
+			local lp = game.Players.LocalPlayer
 
-            if desc:IsDescendantOf(lp.Character) or desc:IsDescendantOf(lp.Backpack) then return end
-            if workspace:FindFirstChild("Entities") and desc:IsDescendantOf(workspace.Entities) then return end
+			local touchPart = desc:FindFirstChild("Handle")
+						or desc.PrimaryPart
+						or desc:FindFirstChildWhichIsA("BasePart", true)
 
-            local touchPart = desc:FindFirstChild("Handle")
-                         or desc.PrimaryPart
-                         or desc:FindFirstChildWhichIsA("BasePart", true)
+			if not touchPart or not touchPart:IsA("BasePart") then return end
+			if not isWithinMap(touchPart.Position) then return end
+			if not isSafeToGrab(touchPart) then return end  -- 👈 replaces the two old lines
 
-            if not touchPart or not touchPart:IsA("BasePart") then return end
+			local char = lp.Character
+			if not char then return end
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			if not hrp then return end
 
-            if not isWithinMap(touchPart.Position) then return end
-
-            local char = lp.Character
-            if not char then return end
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
-
-            pcall(function()
-                firetouchinterest(hrp, touchPart, 0)
-                task.wait(0.03)
-                firetouchinterest(hrp, touchPart, 1)
-            end)
-        end)
-    end
+			pcall(function()
+				firetouchinterest(hrp, touchPart, 0)
+				task.wait(0.03)
+				firetouchinterest(hrp, touchPart, 1)
+			end)
+		end)
+	end
 end)
 
 workspace.DescendantRemoving:Connect(function(desc)
@@ -901,6 +898,53 @@ end
 
 --variables
 local isBusy = false
+
+-- === Safe grab check - never touch items in Entities ===
+local function isSafeToGrab(obj)
+    local entitiesFolder = workspace:FindFirstChild("Entities")
+    local char = lp.Character
+
+    -- Walk up parent chain once, check both
+    local parent = obj.Parent
+    while parent and parent ~= workspace do
+        if parent == entitiesFolder then return false end
+        if char and parent == char then return false end
+        if parent == lp.Backpack then return false end
+        parent = parent.Parent
+    end
+
+    return true
+end
+
+-- === Adonis Anti-Cheat Bypass ===
+task.spawn(function()
+    local NamecallInstanceDetector = nil
+    for Index, Table in getgc(true) do
+        if typeof(Table) ~= "table" then continue end
+        if not rawget(Table, "namecallInstance") then continue end
+        for SecondIndex, StackContainerTable in Table do
+            if typeof(StackContainerTable) ~= "table" then continue end
+            for ThirdIndex, Upvalues in StackContainerTable do
+                if StackContainerTable[ThirdIndex] ~= "kick" then continue end
+                if typeof(StackContainerTable[ThirdIndex + 1]) ~= "function" then continue end
+                local FrozenDetectionFunction = StackContainerTable[ThirdIndex + 1]
+                for _, DetectionIdentifier in getconstants(FrozenDetectionFunction) do
+                    if DetectionIdentifier == "namecallInstance" then
+                        NamecallInstanceDetector = FrozenDetectionFunction                    
+                    end
+                end
+            end
+        end
+    end
+    if NamecallInstanceDetector then
+        hookfunction(NamecallInstanceDetector, function()
+            return false
+        end)
+        print("[Bypass] Adonis namecall detector hooked")
+    else
+        print("[Bypass] Adonis detector not found")
+    end
+end)
 
 ------ FUNCTIONS --------
 
@@ -1575,10 +1619,12 @@ do
 				if isTargetItem(obj) then
 					local handle = obj:FindFirstChild("Handle")
 					if handle and isWithinMap(handle.Position) then
-						local ti = handle:FindFirstChildOfClass("TouchTransmitter")
-						if ti then
-							firetouchinterest(hrp, handle, 0)
-							firetouchinterest(hrp, handle, 1)
+						if isSafeToGrab(handle) then   -- 👈 ADD
+							local ti = handle:FindFirstChildOfClass("TouchTransmitter")
+							if ti then
+								firetouchinterest(hrp, handle, 0)
+								firetouchinterest(hrp, handle, 1)
+							end
 						end
 					end
 				end
@@ -1618,10 +1664,12 @@ do
 				if table.find(selectedNotifyItems, obj.Name) then
 					local handle = obj:FindFirstChild("Handle")
 					if handle and isWithinMap(handle.Position) then
-						local ti = handle:FindFirstChildOfClass("TouchTransmitter")
-						if ti then
-							firetouchinterest(hrp, handle, 0)
-							firetouchinterest(hrp, handle, 1)
+						if isSafeToGrab(handle) then   -- 👈 ADD
+							local ti = handle:FindFirstChildOfClass("TouchTransmitter")
+							if ti then
+								firetouchinterest(hrp, handle, 0)
+								firetouchinterest(hrp, handle, 1)
+							end
 						end
 					end
 				end
@@ -1694,10 +1742,12 @@ do
                                             or obj:FindFirstChildWhichIsA("BasePart", true)
                                     end
 									if part and part:IsA("BasePart") and isWithinMap(part.Position) then
-										local ti = part:FindFirstChildOfClass("TouchTransmitter")
-										if ti then
-											firetouchinterest(hrp, part, 0)
-											firetouchinterest(hrp, part, 1)
+										if isSafeToGrab(part) then   -- 👈 ADD
+											local ti = part:FindFirstChildOfClass("TouchTransmitter")
+											if ti then
+												firetouchinterest(hrp, part, 0)
+												firetouchinterest(hrp, part, 1)
+											end
 										end
 									end
                                 end
@@ -1820,10 +1870,12 @@ do
 								if hrp then
 									for _, part in ipairs(itemsToFarm) do
 										if not autoFarmEnabled then break end
-										local ti = part:FindFirstChildOfClass("TouchTransmitter")
-										if ti then
-											firetouchinterest(hrp, part, 0)
-											firetouchinterest(hrp, part, 1)
+										if isSafeToGrab(part) then   -- 👈 ADD
+											local ti = part:FindFirstChildOfClass("TouchTransmitter")
+											if ti then
+												firetouchinterest(hrp, part, 0)
+												firetouchinterest(hrp, part, 1)
+											end
 										end
 									end
 								end
@@ -2480,12 +2532,13 @@ do
 									end
 
 									if arrowPart then
-										local ti = arrowPart:FindFirstChildOfClass("TouchTransmitter")
-										if ti then
-											firetouchinterest(hrp, arrowPart, 0)
-											firetouchinterest(hrp, arrowPart, 1)
+										if isSafeToGrab(arrowPart) then
+											local ti = arrowPart:FindFirstChildOfClass("TouchTransmitter")
+											if ti then
+												firetouchinterest(hrp, arrowPart, 0)
+												firetouchinterest(hrp, arrowPart, 1)
+											end
 										end
-
 										local pickupStart = tick()
 										while tick() - pickupStart < 1.4 and not hasArrow and autoStandFarmEnabled do
 											hasArrow = lp.Backpack:FindFirstChild("Arrow") or lp.Character:FindFirstChild("Arrow")
@@ -2590,10 +2643,12 @@ do
 									end
 
 									if rokaPart then
-										local ti = rokaPart:FindFirstChildOfClass("TouchTransmitter")
-										if ti then
-											firetouchinterest(hrp, rokaPart, 0)
-											firetouchinterest(hrp, rokaPart, 1)
+										if isSafeToGrab(rokaPart) then
+											local ti = rokaPart:FindFirstChildOfClass("TouchTransmitter")
+											if ti then
+												firetouchinterest(hrp, rokaPart, 0)
+												firetouchinterest(hrp, rokaPart, 1)
+											end
 										end
 
 										local pickupStart = tick()
