@@ -100,97 +100,6 @@ end
 
 -- Run detection on load
 local lp = game:GetService("Players").LocalPlayer
--- === Adonis Anti-Cheat Bypass (blocking) ===
-local NamecallInstanceDetector = nil
-for Index, Table in getgc(true) do
-    if typeof(Table) ~= "table" then continue end
-    if not rawget(Table, "namecallInstance") then continue end
-    for SecondIndex, StackContainerTable in Table do
-        if typeof(StackContainerTable) ~= "table" then continue end
-        for ThirdIndex, Upvalues in StackContainerTable do
-            if StackContainerTable[ThirdIndex] ~= "kick" then continue end
-            if typeof(StackContainerTable[ThirdIndex + 1]) ~= "function" then continue end
-            local FrozenDetectionFunction = StackContainerTable[ThirdIndex + 1]
-            for _, DetectionIdentifier in getconstants(FrozenDetectionFunction) do
-                if DetectionIdentifier == "namecallInstance" then
-                    NamecallInstanceDetector = FrozenDetectionFunction
-                end
-            end
-        end
-    end
-end
-if NamecallInstanceDetector then
-    hookfunction(NamecallInstanceDetector, function()
-        return false
-    end)
-    print("[CHITO Bypass] Adonis namecall detector hooked")
-else
-    print("[CHITO Bypass] Adonis detector not found")
-end
-
-
--- === Kick GUI Bypass (persistent) ===
-do
-    local CoreGui = game:GetService("CoreGui")
-    local UserInputService = game:GetService("UserInputService")
-
-    local function tryDismissKick()
-        pcall(function()
-            local robloxPromptGui = CoreGui:FindFirstChild("RobloxPromptGui")
-            if not robloxPromptGui then return end
-            local promptOverlay = robloxPromptGui:FindFirstChild("promptOverlay")
-            if not promptOverlay then return end
-            local errorPrompt = promptOverlay:FindFirstChild("ErrorPrompt")
-            if not errorPrompt then return end
-
-            -- Destroy the error prompt itself
-            errorPrompt:Destroy()
-
-            -- Remove blur effect from promptOverlay or RobloxPromptGui
-            for _, child in ipairs(promptOverlay:GetChildren()) do
-                if child:IsA("BlurEffect") or child:IsA("DepthOfFieldEffect") then
-                    pcall(function() child:Destroy() end)
-                end
-            end
-            for _, child in ipairs(robloxPromptGui:GetChildren()) do
-                if child:IsA("BlurEffect") or child:IsA("DepthOfFieldEffect") then
-                    pcall(function() child:Destroy() end)
-                end
-            end
-
-            -- Remove blur from Lighting too (Roblox sometimes puts it there)
-            local Lighting = game:GetService("Lighting")
-            for _, child in ipairs(Lighting:GetChildren()) do
-                if child:IsA("BlurEffect") then
-                    pcall(function() child:Destroy() end)
-                end
-            end
-
-            -- Hide the overlay frame itself so input blocker is gone
-            pcall(function()
-                promptOverlay.Visible = false
-            end)
-
-            print("[CHITO] Succesfully dismissed kick screen because retards made it local.")
-        end)
-    end
-
-    CoreGui.DescendantAdded:Connect(function(desc)
-        if not desc or not desc.Parent then return end
-        if desc.Name == "ErrorPrompt" then
-            task.delay(0.05, tryDismissKick)
-        end
-    end)
-
-    task.spawn(function()
-        while true do
-            task.wait(1)
-            tryDismissKick()
-        end
-    end)
-
-    print("[KICK BYPASS] Active - watching for kick screen...")
-end
 
 if lp.Character then
     task.spawn(detectMap)
@@ -1033,9 +942,9 @@ task.spawn(function()
         hookfunction(NamecallInstanceDetector, function()
             return false
         end)
-        print("[Bypass] Adonis namecall detector hooked")
+        print("[CHITO] Adonis namecall detector hooked")
     else
-        print("[Bypass] Adonis detector not found")
+        print("[CHITO] Adonis detector not found")
     end
 end)
 
@@ -1801,12 +1710,15 @@ do
                         })
 
                         while autoGrabSelectedEnabled do
-                            local player = game.Players.LocalPlayer
-                            local character = player and (player.Character or player.CharacterAdded:Wait())
-                            local hrp = character and character:FindFirstChild("HumanoidRootPart")
+							-- Wait for trowel to finish before grabbing anything
+							while isBusy do task.wait(0.5) end
 
-                            if hrp then
-                                for _, obj in ipairs(workspace:GetDescendants()) do
+							local player = game.Players.LocalPlayer
+							local character = player and (player.Character or player.CharacterAdded:Wait())
+							local hrp = character and character:FindFirstChild("HumanoidRootPart")
+
+							if hrp then
+								for _, obj in ipairs(workspace:GetDescendants()) do
                                     if not autoGrabSelectedEnabled then break end
 
                                     -- CORRECT filter: only grab if name is in selectedNotifyItems
@@ -1931,10 +1843,13 @@ do
                         })
 
                         while autoFarmEnabled do
-                            local foundAny = false
-                            local itemsToFarm = {}
+							-- Wait for trowel to finish before scanning/grabbing anything
+							while isBusy do task.wait(0.5) end
 
-                            for _, obj in ipairs(workspace:GetDescendants()) do
+							local foundAny = false
+							local itemsToFarm = {}
+
+							for _, obj in ipairs(workspace:GetDescendants()) do
                                 if isTargetItem(obj) then
                                     -- Skip if in Entities or player's character
                                     local parent = obj.Parent
@@ -2186,26 +2101,26 @@ do
                                 end
 
                                 -- teleport to sand
-                                pcall(function()
-                                    hrp.CFrame = sand.CFrame * CFrame.new(0, 0, -1.8)
-                                end)
-                                task.wait(1.2)
+								isBusy = true  -- 👈 lock BEFORE teleport
+								pcall(function()
+									hrp.CFrame = sand.CFrame * CFrame.new(0, 0, -1.8)
+								end)
+								task.wait(1.2)
 
 								-- dig
-                                if trowel and trowel.Parent == character and trowel:IsA("Tool") then
-                                    print("[Trowel] Digging sand!")
-                                    local activateFunc = trowel.Activate
-                                    if typeof(activateFunc) == "function" then
-                                        isBusy = true
-                                        pcall(activateFunc, trowel)
-                                        task.wait(2.9)
-                                        isBusy = false
-                                    else
-                                        print("[Trowel] Activate is not a function, skipping")
-                                    end
-                                else
-                                    print("[Trowel] Skipped - trowel parent:", trowel and tostring(trowel.Parent) or "NIL")
-                                end
+								if trowel and trowel.Parent == character and trowel:IsA("Tool") then
+									print("[Trowel] Digging sand!")
+									local activateFunc = trowel.Activate
+									if typeof(activateFunc) == "function" then
+										pcall(activateFunc, trowel)
+										task.wait(2.9)
+									else
+										print("[Trowel] Activate is not a function, skipping")
+									end
+								else
+									print("[Trowel] Skipped - trowel parent:", trowel and tostring(trowel.Parent) or "NIL")
+								end
+								isBusy = false  -- 👈 release AFTER everything is done
 
                                 task.wait(0.8)
                             end
