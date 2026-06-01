@@ -900,6 +900,7 @@ end
 
 --variables
 local isBusy = false
+local targetStoreItems = {}
 
 -- === Safe grab check - never touch items in Entities ===
 local function isSafeToGrab(obj)
@@ -920,32 +921,112 @@ end
 
 -- === Adonis Anti-Cheat Bypass ===
 task.spawn(function()
-    local NamecallInstanceDetector = nil
-    for Index, Table in getgc(true) do
-        if typeof(Table) ~= "table" then continue end
-        if not rawget(Table, "namecallInstance") then continue end
-        for SecondIndex, StackContainerTable in Table do
-            if typeof(StackContainerTable) ~= "table" then continue end
-            for ThirdIndex, Upvalues in StackContainerTable do
-                if StackContainerTable[ThirdIndex] ~= "kick" then continue end
-                if typeof(StackContainerTable[ThirdIndex + 1]) ~= "function" then continue end
-                local FrozenDetectionFunction = StackContainerTable[ThirdIndex + 1]
-                for _, DetectionIdentifier in getconstants(FrozenDetectionFunction) do
-                    if DetectionIdentifier == "namecallInstance" then
-                        NamecallInstanceDetector = FrozenDetectionFunction                    
+    local g = getinfo or debug.getinfo
+    local d = false
+    local h = {}
+    local x, y
+
+    setthreadidentity(2)
+
+    for i, v in getgc(true) do
+        if typeof(v) == "table" then
+            local a = rawget(v, "Detected")
+            local b = rawget(v, "Kill")
+
+            if typeof(a) == "function" and not x then
+                x = a
+                local o; o = hookfunction(x, function(c, f, n)
+                    if c ~= "_" then
+                        if d then
+                            warn(`[CHITO] Adonis flagged | Method: {c} | Info: {f}`)
+                        end
                     end
-                end
+                    return true
+                end)
+                table.insert(h, x)
+            end
+
+            if rawget(v, "Variables") and rawget(v, "Process") and typeof(b) == "function" and not y then
+                y = b
+                local o; o = hookfunction(y, function(f)
+                    if d then
+                        warn(`[CHITO] Adonis kill blocked: {f}`)
+                    end
+                end)
+                table.insert(h, y)
             end
         end
     end
-    if NamecallInstanceDetector then
-        hookfunction(NamecallInstanceDetector, function()
-            return false
-        end)
-        print("[CHITO] Adonis namecall detector hooked")
+
+    local o; o = hookfunction(getrenv().debug.info, newcclosure(function(...)
+        local a, f = ...
+        if x and a == x then
+            return coroutine.yield(coroutine.running())
+        end
+        return o(...)
+    end))
+
+    setthreadidentity(7)
+
+    if x or y then
+        print("[CHITO] Adonis bypass active" .. (x and " | Detected hooked" or "") .. (y and " | Kill hooked" or ""))
     else
-        print("[CHITO] Adonis detector not found")
+        warn("[CHITO] Adonis bypass: functions not found")
     end
+end)
+
+
+-- thank u grok
+task.spawn(function()
+    -- Hook indexInstance detector
+    for _, v in ipairs(getgc(true)) do
+        if typeof(v) == "table" then
+            local success, indexInstance = pcall(function()
+                return rawget(v, "indexInstance")
+            end)
+            
+            if success and typeof(indexInstance) == "table" and indexInstance[1] == "kick" then
+                pcall(function()
+                    rawset(v, "tvk", {"kick", function() return nil end})
+                end)
+            end
+        end
+    end
+
+    -- Additional common Adonis hooks
+    local mt = getrawmetatable(game)
+    local oldNamecall = mt.__namecall
+    setreadonly(mt, false)
+
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+
+        if method == "Kick" or method == "kick" then
+            if self == game.Players.LocalPlayer then
+                return
+            end
+        end
+
+        if method == "FireServer" then
+            if tostring(self) == "Damage" or tostring(self) == "Knock" then
+                -- Your remotes are fine
+            end
+        end
+
+        return oldNamecall(self, ...)
+    end)
+
+    setreadonly(mt, true)
+
+    -- Extra safety for prompt re-creation
+    game:GetService("CoreGui").DescendantAdded:Connect(function(desc)
+        if desc.Name:find("ErrorPrompt") or desc.Name:find("Kick") then
+            task.delay(0.1, function()
+                pcall(function() desc:Destroy() end)
+            end)
+        end
+    end)
 end)
 
 ------ FUNCTIONS --------
@@ -1957,7 +2038,7 @@ do
 
 							-- Sell equipped tool first (no teleport, just FireServer)
 							local equipped = character:FindFirstChildOfClass("Tool")
-							if equipped and equipped.Name ~= "Trowel" and not table.find(excludedSellItems, equipped.Name) then
+							if equipped and equipped.Name ~= "Trowel" and not table.find(excludedSellItems, equipped.Name) and not table.find(targetStoreItems, equipped.Name) then
 								game:GetService("ReplicatedStorage")
 									:WaitForChild("BismalqStuff")
 									:WaitForChild("Remotes")
@@ -1977,7 +2058,8 @@ do
 
 								if tool:IsA("Tool")
 								and tool.Name ~= "Trowel"
-								and not table.find(excludedSellItems, tool.Name) then
+								and not table.find(excludedSellItems, tool.Name)
+								and not table.find(targetStoreItems, tool.Name) then
 									humanoid:EquipTool(tool)
 									task.wait(0.15)
 
@@ -2719,6 +2801,189 @@ do
         end
     })
     -- ADD MORE THINGS BELOW
+
+	    StandAutomation:Space()
+
+    -- ────────────────────────────────────────────────
+    -- Auto Store Items
+    -- ────────────────────────────────────────────────
+    local autoStoreItemsEnabled = false
+    local autoStoreItemsThread = nil
+    local lastFullNotifyTime = 0
+
+    local itemBankSlotNames = {"Slot1", "Slot2", "Slot3", "Slot4", "Slot5", "Slot6"}
+
+    local function findEmptyItemBankSlot()
+        local ok, result = pcall(function()
+            local ItemBank = lp.Data.Storage.ItemBank
+            for _, slotName in ipairs(itemBankSlotNames) do
+                local slot = ItemBank:FindFirstChild(slotName)
+                if slot and slot:IsA("StringValue") and slot.Value == "Empty" then
+                    return slotName
+                end
+            end
+            return nil
+        end)
+        return ok and result or nil
+    end
+
+    local function areAllItemSlotsFulll()
+        local ok, result = pcall(function()
+            local ItemBank = lp.Data.Storage.ItemBank
+            for _, slotName in ipairs(itemBankSlotNames) do
+                local slot = ItemBank:FindFirstChild(slotName)
+                if slot and slot:IsA("StringValue") and slot.Value == "Empty" then
+                    return false
+                end
+            end
+            return true
+        end)
+        return ok and result or false
+    end
+
+    local function tryStoreItem(itemName)
+        local emptySlot = findEmptyItemBankSlot()
+        if not emptySlot then
+            local now = tick()
+            if now - lastFullNotifyTime >= 30 then
+                lastFullNotifyTime = now
+                WindUI:Notify({
+                    Title = "Item Bank Full!",
+                    Content = "Item slots are full, toggle off auto store items or free up space in storage.",
+                    Duration = 6,
+                })
+            end
+            return false
+        end
+
+        local success = false
+        pcall(function()
+            local args = { emptySlot, itemName, "Store" }
+            game:GetService("ReplicatedStorage")
+                :WaitForChild("Remotes")
+                :WaitForChild("ItemStorage")
+                :FireServer(unpack(args))
+            success = true
+        end)
+
+		if success then
+            WindUI:Notify({
+                Title = "Item Stored!",
+                Content = itemName .. " stored in " .. emptySlot,
+                Duration = 3,
+                Icon = "check"
+            })
+            task.wait(3)  -- cooldown between stores
+        end
+
+        return success
+    end
+
+    -- Sorted item list for dropdown
+    local storeItemDropdownValues = {}
+    for _, name in ipairs(itemNames) do
+        table.insert(storeItemDropdownValues, name)
+    end
+    table.sort(storeItemDropdownValues)
+
+    StandAutomation:Dropdown({
+        Title = "Items to Auto Store",
+        Desc = "Selected items will be stored automatically when picked up.",
+        Values = storeItemDropdownValues,
+        Multi = true,
+        Value = {},
+        Flag = "AutoStoreItems_List",
+        Callback = function(values)
+            targetStoreItems = values
+        end
+    })
+
+    StandAutomation:Toggle({
+        Title = "Auto Store Items",
+        Desc = "Automatically stores selected items into Item Bank when picked up.",
+        Flag = "Auto_Store_Items",
+        Value = false,
+        Callback = function(enabled)
+            autoStoreItemsEnabled = enabled
+
+            if enabled then
+                if #targetStoreItems == 0 then
+                    WindUI:Notify({
+                        Title = "No Items Selected",
+                        Content = "Select items to store from the dropdown first!",
+                        Duration = 3
+                    })
+                    autoStoreItemsEnabled = false
+                    return
+                end
+
+                if not autoStoreItemsThread then
+                    autoStoreItemsThread = task.spawn(function()
+                        WindUI:Notify({
+                            Title = "Auto Store Items",
+                            Content = "Active - watching backpack for selected items...",
+                            Duration = 3
+                        })
+
+                        while autoStoreItemsEnabled do
+
+							-- Wait for trowel/boss farm to finish before storing
+                            while isBusy do task.wait(0.5) end
+
+                            -- Check backpack and character for target items
+                            local backpack = lp:FindFirstChildOfClass("Backpack")
+                            local character = lp.Character
+
+                            if backpack and character then
+                                for _, toolContainer in ipairs({backpack, character}) do
+                                    for _, tool in ipairs(toolContainer:GetChildren()) do
+                                        if not autoStoreItemsEnabled then break end
+                                        if tool:IsA("Tool") and table.find(targetStoreItems, tool.Name) then
+                                            -- Full slots check with throttled notification
+                                            if areAllItemSlotsFulll() then
+                                                local now = tick()
+                                                if now - lastFullNotifyTime >= 30 then
+                                                    lastFullNotifyTime = now
+                                                    WindUI:Notify({
+                                                        Title = "Item Bank Full!",
+                                                        Content = "Item slots are full, toggle off auto store items or free up space in storage.",
+                                                        Duration = 6,
+                                                    })
+                                                end
+                                                break
+                                            end
+
+                                            -- Equip if in backpack so we can store it
+                                            local humanoid = character:FindFirstChild("Humanoid")
+                                            if tool.Parent == backpack and humanoid then
+                                                humanoid:EquipTool(tool)
+                                                task.wait(0.3)
+                                            end
+
+                                            task.wait(0.2)
+                                            tryStoreItem(tool.Name)
+                                            task.wait(0.5)
+                                        end
+                                    end
+                                end
+                            end
+
+                            task.wait(1)
+                        end
+
+                        autoStoreItemsThread = nil
+                        WindUI:Notify({
+                            Title = "Auto Store Items",
+                            Content = "Stopped",
+                            Duration = 2
+                        })
+                    end)
+                end
+            else
+                autoStoreItemsEnabled = false
+            end
+        end
+    })
 end
 
 
