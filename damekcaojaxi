@@ -985,7 +985,6 @@ if not isXenoOrSolara then
 			warn("[CHITO] Adonis bypass: functions not found")
 		end
 	end)
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))()
 end
 
 
