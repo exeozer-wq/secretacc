@@ -206,7 +206,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v2.0.7",
+        Title = "v2.0.8",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -612,6 +612,7 @@ end
 -- ESP Settings
 local espEnabled = false
 local espObjects = {}           -- BillboardGui cache
+local espFilteredItems = {} -- items currently shown in ESP (all by default)
 local itemConnections = {}      -- ONE declaration only
 
 local itemNames = {
@@ -638,6 +639,11 @@ local itemNames = {
     "Admin Arrow",
     "Banknote",  -- ← keep this if you still want banknotes highlighted
 }
+
+-- Initialize filter with all items selected
+for _, name in ipairs(itemNames) do
+    table.insert(espFilteredItems, name)
+end
 
 local function getItemPart(obj)
     if obj:IsA("BasePart") then
@@ -673,6 +679,7 @@ local function addESP(item)
     -- Normal creation
     local adornee = getItemPart(item)
 
+	if not table.find(espFilteredItems, item.Name) then return end
     if not adornee or not isWithinMap(adornee.Position) then return end
 
     local bb = Instance.new("BillboardGui")
@@ -920,114 +927,7 @@ local function isSafeToGrab(obj)
 end
 
 -- === Adonis Anti-Cheat Bypass ===
-task.spawn(function()
-    local g = getinfo or debug.getinfo
-    local d = false
-    local h = {}
-    local x, y
-
-    setthreadidentity(2)
-
-    for i, v in getgc(true) do
-        if typeof(v) == "table" then
-            local a = rawget(v, "Detected")
-            local b = rawget(v, "Kill")
-
-            if typeof(a) == "function" and not x then
-                x = a
-                local o; o = hookfunction(x, function(c, f, n)
-                    if c ~= "_" then
-                        if d then
-                            warn(`[CHITO] Adonis flagged | Method: {c} | Info: {f}`)
-                        end
-                    end
-                    return true
-                end)
-                table.insert(h, x)
-            end
-
-            if rawget(v, "Variables") and rawget(v, "Process") and typeof(b) == "function" and not y then
-                y = b
-                local o; o = hookfunction(y, function(f)
-                    if d then
-                        warn(`[CHITO] Adonis kill blocked: {f}`)
-                    end
-                end)
-                table.insert(h, y)
-            end
-        end
-    end
-
-    local o; o = hookfunction(getrenv().debug.info, newcclosure(function(...)
-        local a, f = ...
-        if x and a == x then
-            return coroutine.yield(coroutine.running())
-        end
-        return o(...)
-    end))
-
-    setthreadidentity(7)
-
-    if x or y then
-        print("[CHITO] Adonis bypass active" .. (x and " | Detected hooked" or "") .. (y and " | Kill hooked" or ""))
-    else
-        warn("[CHITO] Adonis bypass: functions not found")
-    end
-end)
-
-
--- thank u grok
-task.spawn(function()
-    -- Hook indexInstance detector
-    for _, v in ipairs(getgc(true)) do
-        if typeof(v) == "table" then
-            local success, indexInstance = pcall(function()
-                return rawget(v, "indexInstance")
-            end)
-            
-            if success and typeof(indexInstance) == "table" and indexInstance[1] == "kick" then
-                pcall(function()
-                    rawset(v, "tvk", {"kick", function() return nil end})
-                end)
-            end
-        end
-    end
-
-    -- Additional common Adonis hooks
-    local mt = getrawmetatable(game)
-    local oldNamecall = mt.__namecall
-    setreadonly(mt, false)
-
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        local args = {...}
-
-        if method == "Kick" or method == "kick" then
-            if self == game.Players.LocalPlayer then
-                return
-            end
-        end
-
-        if method == "FireServer" then
-            if tostring(self) == "Damage" or tostring(self) == "Knock" then
-                -- Your remotes are fine
-            end
-        end
-
-        return oldNamecall(self, ...)
-    end)
-
-    setreadonly(mt, true)
-
-    -- Extra safety for prompt re-creation
-    game:GetService("CoreGui").DescendantAdded:Connect(function(desc)
-        if desc.Name:find("ErrorPrompt") or desc.Name:find("Kick") then
-            task.delay(0.1, function()
-                pcall(function() desc:Destroy() end)
-            end)
-        end
-    end)
-end)
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua",true))()
 
 ------ FUNCTIONS --------
 
@@ -1607,6 +1507,34 @@ do
             end
         end
     })
+
+	ESPTab:Dropdown({
+		Title = "ESP Items Filter",
+		Desc = "Uncheck items to hide their ESP",
+		Values = itemNames,
+		Multi = true,
+		Value = itemNames,  -- all selected by default
+		Flag = "ESP_Items_Filter",
+		Callback = function(values)
+			espFilteredItems = values
+
+			-- Remove ESP from items no longer in filter
+			for item, gui in pairs(espObjects) do
+				if not table.find(espFilteredItems, item.Name) then
+					removeESP(item)
+				end
+			end
+
+			-- Add ESP for newly included items (if ESP is enabled)
+			if espEnabled then
+				for _, obj in ipairs(workspace:GetDescendants()) do
+					if table.find(espFilteredItems, obj.Name) then
+						addESP(obj)
+					end
+				end
+			end
+		end
+	})
 
     ESPTab:Space()
 
