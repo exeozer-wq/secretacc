@@ -1,0 +1,463 @@
+
+-- Wait for game and essentials to load (Solara/first-exec fix)
+repeat wait() until game:IsLoaded()
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+-- Wait for Remotes
+local Remotes = nil
+repeat
+    Remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    wait(0.2)
+until Remotes
+
+-- Wait for character
+if not LocalPlayer.Character or not LocalPlayer.Character.Parent then
+    LocalPlayer.CharacterAdded:Wait()
+end
+
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+local Window = Fluent:CreateWindow({
+    Title = "CHITO " .. Fluent.Version,
+    SubTitle = "by onlyoneflaw",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = false, -- Blur disabled for compatibility
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+--Fluent provides Lucide Icons https://lucide.dev/icons/ for the tabs, icons are optional
+local Tabs = {
+    Main = Window:AddTab({ Title = "Main", Icon = "home" }), -- Added Lucide 'home' icon as logo
+    Tweaks = Window:AddTab({ Title = "Tweaks", Icon = "sliders" }),
+    Abuse = Window:AddTab({ Title = "ABUSE", Icon = "alert-triangle" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
+
+
+
+
+
+local Options = Fluent.Options
+
+do
+            -- Tweaks Tab: Noclip Toggle
+            local noclipEnabled = false
+            local noclipConnection = nil
+            local NoclipToggle = Tabs.Tweaks:AddToggle("NoclipToggle", {
+                Title = "Noclip",
+                Description = "Walk through walls (toggle on/off)",
+                Default = false
+            })
+
+            local function setNoclip(state)
+                local player = game:GetService("Players").LocalPlayer
+                local function noclipStep()
+                    if player.Character then
+                        for _, part in ipairs(player.Character:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                part.CanCollide = not state
+                            end
+                        end
+                    end
+                end
+                if state then
+                    if not noclipConnection then
+                        noclipConnection = game:GetService("RunService").Stepped:Connect(noclipStep)
+                    end
+                else
+                    if noclipConnection then
+                        noclipConnection:Disconnect()
+                        noclipConnection = nil
+                    end
+                    noclipStep()
+                end
+            end
+
+            NoclipToggle:OnChanged(function()
+                noclipEnabled = NoclipToggle.Value
+                setNoclip(noclipEnabled)
+                Fluent:Notify({
+                    Title = "Noclip",
+                    Content = noclipEnabled and "Noclip enabled!" or "Noclip disabled!",
+                    Duration = 2
+                })
+            end)
+        -- ABUSE Tab: Paragraph and Become Robot Button
+        Tabs.Abuse:AddButton({
+            Title = "BECOME ROBOT",
+            Description = "Training ring needs to be empty.",
+            Callback = function()
+                local Players = game:GetService("Players")
+                local player = Players.LocalPlayer
+                local character = player.Character
+
+                -- Immediate warning to user
+                Fluent:Notify({
+                    Title = "BECOME ROBOT",
+                    Content = "Do not do anything for the next 10 seconds. Please wait patiently...",
+                    Duration = 5
+                })
+
+                task.spawn(function()
+                    -- Step 1: Touchinterest
+                    task.wait(2)
+                    Fluent:Notify({
+                        Title = "Step 1/5",
+                        Content = "Joining Training Ring..",
+                        Duration = 2
+                    })
+                    local touchPart = workspace:FindFirstChild("Rings")
+                    if touchPart then
+                        touchPart = touchPart:FindFirstChild("TrainingRing")
+                        if touchPart then
+                            touchPart = touchPart:FindFirstChild("Zones")
+                            if touchPart then
+                                touchPart = touchPart:FindFirstChild("P1Touch")
+                                if touchPart then
+                                    touchPart = touchPart:FindFirstChild("Touch1")
+                                    if touchPart and character and character:FindFirstChild("HumanoidRootPart") then
+                                        firetouchinterest(character.HumanoidRootPart, touchPart, 0)
+                                        firetouchinterest(character.HumanoidRootPart, touchPart, 1)
+                                    end
+                                end
+                            end
+                        end
+                    end
+
+                    -- Step 2: Toggle InGameState
+                    task.wait(2)
+                    Fluent:Notify({
+                        Title = "Step 2/5",
+                        Content = "Raping InGameState attribute.",
+                        Duration = 2
+                    })
+                    pcall(function()
+                        player:SetAttribute("InGameState", false)
+                    end)
+                    task.wait(0.1)
+                    pcall(function()
+                        player:SetAttribute("InGameState", true)
+                    end)
+
+                    -- Step 3: Teleport
+                    task.wait(2)
+                    Fluent:Notify({
+                        Title = "Step 3/5",
+                        Content = "Teleporting...",
+                        Duration = 2
+                    })
+                    -- Spam teleport for 2 seconds to ensure it works even if HumanoidRootPart appears late
+                    local spamTimeout = tick() + 2
+                    while tick() < spamTimeout do
+                        character = player.Character
+                        if character and character:FindFirstChild("HumanoidRootPart") then
+                            pcall(function()
+                                character.HumanoidRootPart.CFrame = CFrame.new(-15, 4, 6)
+                            end)
+                        end
+                        task.wait(0.05)
+                    end
+
+                    -- Step 4: Camera script
+                    task.wait(2)
+                    Fluent:Notify({
+                        Title = "Step 4/5",
+                        Content = "Camera Tweaks..",
+                        Duration = 2
+                    })
+                    local RunService = game:GetService("RunService")
+                    local camera = workspace.CurrentCamera
+                    local function resetCamera()
+                        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+                            camera.CameraSubject = player.Character:FindFirstChildOfClass("Humanoid")
+                            camera.CameraType = Enum.CameraType.Custom
+                            camera.FieldOfView = 70
+                        end
+                    end
+                    if not getgenv().RobotCameraConnection or not getgenv().RobotCameraConnection.Connected then
+                        getgenv().RobotCameraConnection = RunService.RenderStepped:Connect(resetCamera)
+                        print("Camera reset enabled! Original Roblox camera restored.")
+                    end
+
+                    -- Step 5: Success
+                    task.wait(2)
+                    Fluent:Notify({
+                        Title = "Step 5/5",
+                        Content = "Robot morph and state set successfully!",
+                        Duration = 5
+                    })
+                end)
+            end
+        })
+
+		
+	-- ==================== WALKSPEED (Toggle + Slider) ====================
+	local walkspeedEnabled = false
+	local wsConnection = nil
+	local currentSpeed = 16
+
+	-- Walkspeed Toggle
+	local WalkspeedToggle = Tabs.Tweaks:AddToggle("WalkspeedToggle", {
+		Title = "Enable Walkspeed",
+		Description = "Turn custom walkspeed on/off",
+		Default = false
+	})
+
+	-- Walkspeed Slider
+	local WalkspeedSlider = Tabs.Tweaks:AddSlider("WalkspeedSlider", {
+		Title = "Walkspeed Value",
+		Description = "Speed when toggle is enabled",
+		Default = 16,
+		Min = 0,
+		Max = 200,
+		Rounding = 0,
+	})
+
+	local function enforceWalkspeed()
+		if wsConnection then 
+			wsConnection:Disconnect() 
+			wsConnection = nil 
+		end
+		
+		if not walkspeedEnabled then return end
+
+		currentSpeed = WalkspeedSlider.Value
+		
+		wsConnection = RunService.Heartbeat:Connect(function()
+			local char = LocalPlayer.Character
+			if not char then return end
+			local hum = char:FindFirstChildWhichIsA("Humanoid")
+			if hum and hum.WalkSpeed ~= currentSpeed then
+				hum.WalkSpeed = currentSpeed
+			end
+		end)
+	end
+
+	-- Toggle Changed
+	WalkspeedToggle:OnChanged(function(state)
+		walkspeedEnabled = state
+		
+		Fluent:Notify({
+			Title = "Walkspeed",
+			Content = state and "Enabled (" .. WalkspeedSlider.Value .. ")" or "Disabled",
+			Duration = 2
+		})
+		
+		enforceWalkspeed()
+	end)
+
+	-- Slider Changed
+	WalkspeedSlider:OnChanged(function(value)
+		if walkspeedEnabled then
+			enforceWalkspeed()  -- Update live
+		end
+	end)
+
+	-- Handle Character Respawn
+	LocalPlayer.CharacterAdded:Connect(function()
+		task.wait(0.5)  -- Small delay to let Humanoid load
+		enforceWalkspeed()
+	end)
+
+	-- Initial state
+	if LocalPlayer.Character then
+		task.wait(0.5)
+		enforceWalkspeed()
+	end
+
+
+
+        -- Get all player names except LocalPlayer
+    local function getPlayerNames()
+        local names = {}
+        for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
+            if player ~= game:GetService("Players").LocalPlayer then
+                table.insert(names, player.Name)
+            end
+        end
+        return names
+    end
+    
+    -- Add the 'Enable Highlight' toggle above the player selection dropdown
+    local EnableHighlightToggle = Tabs.Main:AddToggle("EnableHighlightToggle", {
+        Title = "Enable Highlight",
+        Description = "Highlight selected player.",
+        Default = true
+    })
+
+    -- Create the dropdown for player selection
+    local PlayerDropdown = Tabs.Main:AddDropdown("PlayerDropdown", {
+        Title = "Select Player",
+        Values = getPlayerNames(),
+        Multi = false,
+        Default = 1,
+    })
+
+    -- Highlight logic for selected player
+    local lastHighlightedPlayer = nil
+    local function removeHighlight(player)
+        if player and player.Character then
+            for _, v in ipairs(player.Character:GetChildren()) do
+                if v:IsA("Highlight") then
+                    v:Destroy()
+                end
+            end
+        end
+    end
+
+    local function addHighlight(player)
+        if player and player.Character then
+            removeHighlight(player)
+            local hl = Instance.new("Highlight")
+            hl.Adornee = player.Character
+            hl.FillColor = Color3.fromRGB(255, 0, 0)
+            hl.OutlineColor = Color3.fromRGB(0, 0, 0)
+            hl.Parent = player.Character
+        end
+    end
+
+    local function updateHighlight()
+        if EnableHighlightToggle.Value then
+            local selectedName = PlayerDropdown.Value
+            local player = game:GetService("Players"):FindFirstChild(selectedName)
+            if player then
+                if lastHighlightedPlayer and lastHighlightedPlayer ~= player then
+                    removeHighlight(lastHighlightedPlayer)
+                end
+                addHighlight(player)
+                lastHighlightedPlayer = player
+            end
+        else
+            if lastHighlightedPlayer then
+                removeHighlight(lastHighlightedPlayer)
+                lastHighlightedPlayer = nil
+            end
+        end
+    end
+
+    PlayerDropdown:OnChanged(function()
+        updateHighlight()
+    end)
+
+    EnableHighlightToggle:OnChanged(function()
+        updateHighlight()
+    end)
+    
+    -- Update dropdown when players join/leave
+    game:GetService("Players").PlayerAdded:Connect(function()
+        PlayerDropdown:SetValues(getPlayerNames())
+    end)
+    game:GetService("Players").PlayerRemoving:Connect(function()
+        PlayerDropdown:SetValues(getPlayerNames())
+    end)
+
+	-- ==================== KILL AURA (Working Packet Version) ====================
+	local killAuraConnection = nil
+
+	local KillAuraToggle = Tabs.Main:AddToggle("KillAuraToggle", {
+		Title = "Enable Kill Aura",
+		Description = "get close to enemy",
+		Default = false
+	})
+
+	KillAuraToggle:OnChanged(function(state)
+		if killAuraConnection then
+			killAuraConnection:Disconnect()
+			killAuraConnection = nil
+		end
+
+		if not state then
+			Fluent:Notify({Title = "Kill Aura", Content = "Disabled", Duration = 2})
+			return
+		end
+
+		Fluent:Notify({Title = "Kill Aura", Content = "Enabled - Spamming HEAD hits", Duration = 3})
+
+		killAuraConnection = RunService.Heartbeat:Connect(function()
+			local selectedName = PlayerDropdown.Value
+			if not selectedName or selectedName == "" then return end
+
+			local targetPlayer = Players:FindFirstChild(selectedName)
+			if not targetPlayer then return end
+
+			-- Exact format from your working example
+			local args = {
+				buffer.fromstring("\020\r\v\001P\005>\005\006\v\004HEAD\022\153$\015B\246\003gAZ\227MB\023\173\142\157\031\127u\f\203\014BX\131fA\1958NB\022\154\153\025?\154\153\025?\001\020\024?\n\024VoC\161\139\218A\000"),
+				{
+					targetPlayer          -- Player object, not Character
+				}
+			}
+
+			pcall(function()
+				local RemoteEvent = ReplicatedStorage:WaitForChild("Modules")
+					:WaitForChild("Network")
+					:WaitForChild("Packet")
+					:WaitForChild("RemoteEvent")
+
+				RemoteEvent:FireServer(unpack(args))
+			end)
+		end)
+	end)
+
+    -- Add the "Instant Get Up" button under Instant Knockout
+    Tabs.Main:AddButton({
+        Title = "Instant Get Up",
+        Description = "Get up instantly when you're knocked out.",
+        Callback = function()
+            for i = 1, 9 do
+                local ringName = "Ring" .. tostring(i)
+                local args = {
+                    workspace:WaitForChild("Rings"):WaitForChild(ringName),
+                    8337479548,
+                    true
+                }
+                game:GetService("ReplicatedStorage"):WaitForChild("QTECompleteEvent"):FireServer(unpack(args))
+            end
+            -- Notification removed
+        end
+    })
+end
+
+
+-- Addons:
+-- SaveManager (Allows you to have a configuration system)
+-- InterfaceManager (Allows you to have a interface managment system)
+
+-- Hand the library over to our managers
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
+
+-- Ignore keys that are used by ThemeManager.
+-- (we dont want configs to save themes, do we?)
+SaveManager:IgnoreThemeSettings()
+
+-- You can add indexes of elements the save manager should ignore
+SaveManager:SetIgnoreIndexes({})
+
+-- use case for doing it this way:
+-- a script hub could have themes in a global folder
+-- and game configs in a separate folder per game
+InterfaceManager:SetFolder("ChitoHub")
+SaveManager:SetFolder("ChitoHub/untitledrobotboxing")
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+
+
+
+Window:SelectTab(1)
+Fluent:Notify({
+    Title = "ChitoHUB",
+    Content = "ChitoHUB has loaded.",
+    Duration = 5
+})
+
+-- You can use the SaveManager:LoadAutoloadConfig() to load a config
+-- which has been marked to be one that auto loads!
+SaveManager:LoadAutoloadConfig()
