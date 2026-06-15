@@ -206,7 +206,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v2.0.7",
+        Title = "v2.0.8",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -639,6 +639,8 @@ local itemNames = {
     "Banknote",  -- ← keep this if you still want banknotes highlighted
 }
 
+local espExcludedItems = {}  -- items excluded from ESP display
+
 local function getItemPart(obj)
     if obj:IsA("BasePart") then
         return obj
@@ -656,6 +658,7 @@ end
 
 local function addESP(item)
     if espObjects[item] then return end
+    if #espExcludedItems > 0 and table.find(espExcludedItems, item.Name) then return end
 
     -- Check if item is already in Entities or player's character
     local parent = item.Parent
@@ -711,9 +714,10 @@ end
 
 local function setESPEnabled(enabled)
     espEnabled = enabled
-    for _, gui in pairs(espObjects) do
+    for item, gui in pairs(espObjects) do
         if gui and gui.Parent then
-            gui.Enabled = enabled
+            local isExcluded = table.find(espExcludedItems, item.Name) ~= nil
+            gui.Enabled = enabled and not isExcluded
         end
     end
 end
@@ -897,10 +901,41 @@ local function runKillAura(overrideRange)
     end
 end
 
+-- NPC Kill (sets humanoid health to 0 for NPCs in Entities)
+local npcKillEnabled = false
+local npcKillThread = nil
+
+local function startNPCKill()
+    if npcKillThread then return end
+    npcKillThread = task.spawn(function()
+        while npcKillEnabled do
+            task.wait(1)
+            local entitiesFolder = workspace:FindFirstChild("Entities")
+            if entitiesFolder then
+                for _, v in pairs(entitiesFolder:GetChildren()) do
+                    if v:GetAttribute("NPC") and not v:GetAttribute("Dummy") then
+                        local npcHumanoid = v:FindFirstChildOfClass("Humanoid")
+                        if npcHumanoid and npcHumanoid.Health > 0 then
+                            npcHumanoid.Health = 0
+                        end
+                    end
+                end
+            end
+        end
+        npcKillThread = nil
+    end)
+end
+
+local function stopNPCKill()
+    npcKillEnabled = false
+    -- thread exits naturally via while condition
+end
+
 
 --variables
 local isBusy = false
 local targetStoreItems = {}
+local urtzEnabled = false
 
 -- === Safe grab check - never touch items in Entities ===
 local function isSafeToGrab(obj)
@@ -1454,7 +1489,10 @@ do
         Callback = function(enabled)
             autoBossFarmEnabled = enabled
 
+
             if enabled then
+                npcKillEnabled = true
+                startNPCKill()
                 if #selectedBosses == 0 then
                     WindUI:Notify({ Title = "No Bosses Selected", Duration = 2 })
                     autoBossFarmEnabled = false
@@ -1520,57 +1558,24 @@ do
                                 Duration = 1.2
                             })
 
-                            -- SINGLE-TARGET LOOP (Funny Valentine Deflect handling + safe teleport)
-							isBusy = true
-                            local attackStart = tick()
-                            while autoBossFarmEnabled 
-                                and targetBoss.humanoid.Health > 0 
-                                and targetBoss.root.Parent 
-                                and (tick() - attackStart < 30)
+                            -- NPC kill thread handles it passively, just wait until boss dies
+                            while autoBossFarmEnabled
+                                and targetBoss.humanoid.Health > 0
+                                and targetBoss.root.Parent
                             do
-                                -- SMOOTH FLOAT TO BOSS (normal position when not in deflect)
-                                pcall(function()
-                                    playerHRP.CFrame = CFrame.new(targetBoss.root.Position + Vector3.new(0, 10, 0))
-                                    playerHRP.Velocity = Vector3.new(0, 0, 0)
-                                    playerHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                                end)
-
-                                -- === FUNNY VALENTINE DEFLECT CHECK & SAFE TELEPORT ===
-                                local shouldAttack = true
-
-                                if targetBoss.name == "Funny Valentine" then
-                                    local entities = workspace:FindFirstChild("Entities")
-                                    if entities then
-                                        local fv = entities:FindFirstChild("Funny Valentine")
-                                        if fv then
-                                            local deflect = fv:FindFirstChild("Deflect")
-                                            if deflect and deflect:IsA("BoolValue") and deflect.Value == true then
-                                                shouldAttack = false
-                                                
-                                                -- Teleport to safe location during Deflect
-                                                pcall(function()
-                                                    playerHRP.CFrame = CFrame.new(4223, 349, 5373)
-                                                    playerHRP.Velocity = Vector3.new(0, 0, 0)
-                                                    playerHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                                                end)
-                                            end
-                                        end
-                                    end
-                                end
-
-                                -- Only deal damage if we should attack (deflect is off or not FV)
-                                if shouldAttack then
-                                    -- DPS: extra range for Dio Brando minions
-                                    if targetBoss.name == "Dio Brando" then
-                                        runKillAura(45)
-                                    else
-                                        runKillAura()
-                                    end
-                                end
-
-                                task.wait(0.04)  -- fast loop rate
+                                task.wait(0.5)
                             end
-							isBusy = false
+                            isBusy = false
+
+                            -- Notify kill only if farm is still running (not manually stopped)
+                            if autoBossFarmEnabled then
+                                WindUI:Notify({
+                                    Title = "Boss Killed!",
+                                    Content = targetBoss.name .. " has been defeated!",
+                                    Icon = "check",
+                                    Duration = 3
+                                })
+                            end
                         end
 
                         autoBossFarmThread = nil
@@ -1580,6 +1585,7 @@ do
                 end
             else
                 autoBossFarmEnabled = false
+                npcKillEnabled = false  -- stops the npc kill thread too
                 -- Optional: immediately stop thread if you want more responsive stopping
                 -- if autoBossFarmThread then task.cancel(autoBossFarmThread) end
             end
@@ -1607,6 +1613,39 @@ do
             end
         end
     })
+
+    -- All items selected by default — deselect to hide from ESP
+    local espFilterDropdown = ESPTab:Dropdown({
+        Title = "ESP Filter (deselect to hide)",
+        Desc = "All items shown by default. Uncheck to exclude from ESP.",
+        Values = itemNames,
+        Multi = true,
+        Value = {table.unpack(itemNames)},
+        Callback = function(selected)
+            espExcludedItems = {}
+            for _, name in ipairs(itemNames) do
+                if not table.find(selected, name) then
+                    table.insert(espExcludedItems, name)
+                end
+            end
+
+            for item, gui in pairs(espObjects) do
+                if table.find(espExcludedItems, item.Name) then
+                    pcall(function() gui:Destroy() end)
+                    espObjects[item] = nil
+                elseif gui and gui.Parent then
+                    gui.Enabled = espEnabled
+                end
+            end
+
+            -- Re-create ESP for any items that are now allowed but missing their GUI
+            if espEnabled then
+                scanExistingItems()
+            end
+        end
+    })
+
+    espExcludedItems = {}
 
     ESPTab:Space()
 
@@ -1908,7 +1947,7 @@ do
 
     ESPSection2:Toggle({
         Title = "Auto farm items",
-        Desc = "Auto-teleport to all spawned items",
+        Desc = "Instantly take all items [Might not work on solara since it's retarded exec which doesn't even support firing touchinterest",
         Flag = "Auto_Farm_Items",
         Value = false,
         Callback = function(enabled)
@@ -2036,48 +2075,41 @@ do
 							local humanoid = character:FindFirstChild("Humanoid")
 							if not humanoid then task.wait(1) continue end
 
-							-- Sell equipped tool first (no teleport, just FireServer)
-							local equipped = character:FindFirstChildOfClass("Tool")
-							if equipped and equipped.Name ~= "Trowel" and not table.find(excludedSellItems, equipped.Name) and not table.find(targetStoreItems, equipped.Name) then
-								game:GetService("ReplicatedStorage")
-									:WaitForChild("BismalqStuff")
-									:WaitForChild("Remotes")
-									:WaitForChild("Sell"):FireServer()
-								soldThisCycle += 1
-								task.wait(0.2)
-							end
+							local SellRemote = game:GetService("ReplicatedStorage")
+                                :WaitForChild("BismalqStuff")
+                                :WaitForChild("Remotes")
+                                :WaitForChild("Sell")
 
-							-- Sell from backpack one by one, checking isBusy before each
-							for _, tool in ipairs(backpack:GetChildren()) do
-								if not autoSellEnabled then break end
+                            -- Wait until nothing else is happening before we start the sell pass
+                            while isBusy do task.wait(0.3) end
 
-								-- Re-check isBusy before each equip attempt
-								while isBusy do
-									task.wait(0.5)
-								end
+                            -- Sell equipped tool immediately
+                            local equipped = character:FindFirstChildOfClass("Tool")
+                            if equipped
+                            and equipped.Name ~= "Trowel"
+                            and not table.find(excludedSellItems, equipped.Name)
+                            and not table.find(targetStoreItems, equipped.Name) then
+                                SellRemote:FireServer()
+                                soldThisCycle += 1
+                            end
 
-								if tool:IsA("Tool")
-								and tool.Name ~= "Trowel"
-								and not table.find(excludedSellItems, tool.Name)
-								and not table.find(targetStoreItems, tool.Name) then
-									humanoid:EquipTool(tool)
-									task.wait(0.15)
+                            -- Rapid-sell everything in backpack
+                            for _, tool in ipairs(backpack:GetChildren()) do
+                                if not autoSellEnabled then break end
 
-									local equipStart = tick()
-									while tick() - equipStart < 0.5 and tool.Parent ~= character do
-										task.wait()
-									end
+                                -- Re-check isBusy between each tool in case trowel farm kicks in mid-sell
+                                if isBusy then break end
 
-									if tool.Parent == character then
-										game:GetService("ReplicatedStorage")
-											:WaitForChild("BismalqStuff")
-											:WaitForChild("Remotes")
-											:WaitForChild("Sell"):FireServer()
-										soldThisCycle += 1
-										task.wait(0.25)
-									end
-								end
-							end
+                                if tool:IsA("Tool")
+                                and tool.Name ~= "Trowel"
+                                and not table.find(excludedSellItems, tool.Name)
+                                and not table.find(targetStoreItems, tool.Name) then
+                                    humanoid:EquipTool(tool)
+                                    task.wait(0.05)
+                                    SellRemote:FireServer()
+                                    soldThisCycle += 1
+                                end
+                            end
 
 							if soldThisCycle > 0 then
 								WindUI:Notify({
@@ -3042,6 +3074,27 @@ do
 			end
 		end
 	})
+
+    -- === NEW: URTZ Remote Toggle ===
+    MiscTab:Toggle({
+        Title = "Semi-Godmode/URTZ",
+        Flag = "URTZ_Remote_Toggle",
+        Color = Color3.fromHex("#257AF7"), -- Nice Blue Accent
+        Value = false,
+        Callback = function(v)
+            urtzEnabled = v
+            pcall(function()
+                local args = { urtzEnabled }
+                game:GetService("ReplicatedStorage"):WaitForChild("URTZ"):FireServer(unpack(args))
+            end)
+            
+            WindUI:Notify({
+                Title = "Godmode",
+                Content = "status: " .. tostring(urtzEnabled),
+                Duration = 2
+            })
+        end
+    })
 
 	MiscTab:Space()
 
