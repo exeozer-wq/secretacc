@@ -114,7 +114,7 @@ local Window = WindUI:CreateWindow({
 -- */  Tags  /* --
 do
     Window:Tag({
-        Title = "v1.0",
+        Title = "v1.1",
         Icon = "bird",
         Color = Color3.fromHex("#1c1c1c"),
         Border = true,
@@ -739,84 +739,7 @@ do
     })
 
     MainTab:Space()
-    MainTab:Space()
-
-    local MainSection2 = MainTab:Section({
-        Title = "Infinite Money",
-    })
-
-    MainTab:Toggle({
-        Title = "Infinite Money",
-        Desc = "Only works if you're playing the game for the first time",
-        Type = "Checkbox",
-        Flag = "Infinite_money",
-        Callback = function(enabled)
-            -- Clean up any existing loop first
-            if moneyThread then
-                task.cancel(moneyThread)
-                moneyThread = nil
-            end
-
-            if enabled then
-                moneyThread = task.spawn(function()
-                    local remote = game:GetService("ReplicatedStorage"):WaitForChild("ClaimCoinsPopUp", 10)
-                    
-                    if not remote then
-                        warn("something failed, contact script owner")
-                        return
-                    end
-
-                    while true do
-                        local success, err = pcall(function()
-                            remote:FireServer()
-                        end)
-                        
-                        if not success then
-                            warn("something failed, contact script owner")
-                            -- Optional: break or continue depending on how critical errors are
-                            task.wait(1)  -- small cooldown on error to avoid spam
-                        end
-
-                        task.wait(0.01)
-                    end
-                end)
-            end
-        end
-    })
-
-    MainTab:Toggle({
-        Title = "Aggressive infinite money",
-        Desc = "Might heavily lag your game, only use if you're trying to get into leaderboard",
-        Type = "Checkbox",
-        Flag = "aggro_infinite_money",
-        Callback = function(enabled)
-            if moneyThread then
-                task.cancel(moneyThread)
-                moneyThread = nil
-            end
-
-            if not enabled then
-                return
-            end
-
-            moneyThread = task.spawn(function()
-                local remote = game:GetService("ReplicatedStorage"):WaitForChild("ClaimCoinsPopUp", 10)
-                
-                if not remote then
-                    return
-                end
-
-                while true do
-                    for i = 1, 1000 do
-                        pcall(remote.FireServer, remote)
-                    end
-                    task.wait(1)
-                end
-            end)
-        end
-    })
 end
-
 
 -- */ Player Tab /* --
 
