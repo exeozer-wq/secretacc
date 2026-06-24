@@ -2176,7 +2176,7 @@ do
                             local trowel = player.Backpack:FindFirstChild("Trowel") or character:FindFirstChild("Trowel")
                             if not trowel then
                                 pcall(function() PurchaseRemote:FireServer("Trowel") end)
-                                task.wait(2)
+                                task.wait()
                                 trowel = player.Backpack:FindFirstChild("Trowel") or character:FindFirstChild("Trowel")
                                 if not trowel then task.wait(1) continue end  -- still no trowel, retry
                             end
@@ -2184,7 +2184,7 @@ do
                             -- Step 2: equip if in backpack
                             if trowel.Parent == player.Backpack then
                                 humanoid:EquipTool(trowel)
-                                task.wait(0.6)
+                                task.wait(0.1)
                                 trowel = player.Backpack:FindFirstChild("Trowel") or character:FindFirstChild("Trowel")
                             end
 
@@ -2221,7 +2221,7 @@ do
 								pcall(function()
 									hrp.CFrame = sand.CFrame * CFrame.new(0, 0, -1.8)
 								end)
-								task.wait(1.2)
+								task.wait(0.3)
 
 								-- dig
 								if trowel and trowel.Parent == character and trowel:IsA("Tool") then
@@ -2240,7 +2240,7 @@ do
                             end
 
 							isBusy = true   -- lock during between-cycle cooldown
-                            task.wait(1.2)
+                            task.wait(0)
                             isBusy = false  -- now safe to sell
                         end
 
