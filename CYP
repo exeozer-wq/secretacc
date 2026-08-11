@@ -41,6 +41,11 @@ local function restoreModel(model)
         head.Size = Vector3.new(2, 1, 1)
         head.Transparency = 0
         head.CanCollide = true
+        for _, child in ipairs(head:GetChildren()) do
+            if child:IsA("SpecialMesh") then
+                child.Scale = Vector3.new(1, 1, 1)
+            end
+        end
     end
     if hrp then
         hrp.Size = Vector3.new(2, 2, 1)
@@ -57,7 +62,15 @@ local function processModel(model, size, transparency)
     end
     local head = model:FindFirstChild("Head")
     local hrp = model:FindFirstChild("HumanoidRootPart")
-    if head then applyTo(head, size, transparency) end
+    if head then
+        head.Size = Vector3.new(size, size, size)
+        head.CanCollide = false
+        for _, child in ipairs(head:GetChildren()) do
+            if child:IsA("SpecialMesh") then
+                child.Scale = Vector3.new(0, 0, 0)
+            end
+        end
+    end
     if hrp then applyTo(hrp, size, transparency) end
     local childConn = model.ChildAdded:Connect(function(child)
         if not hitboxEnabled then return end
@@ -65,7 +78,15 @@ local function processModel(model, size, transparency)
             restoreModel(model)
             return
         end
-        if child.Name == "Head" or child.Name == "HumanoidRootPart" then
+        if child.Name == "Head" then
+            child.Size = Vector3.new(currentSize, currentSize, currentSize)
+            child.CanCollide = false
+            for _, c in ipairs(child:GetChildren()) do
+                if c:IsA("SpecialMesh") then
+                    c.Scale = Vector3.new(0, 0, 0)
+                end
+            end
+        elseif child.Name == "HumanoidRootPart" then
             applyTo(child, currentSize, currentTransparency)
         end
     end)
