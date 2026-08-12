@@ -11,9 +11,15 @@ local currentSize = 15
 local currentTransparency = 0.5
 local connections = {}
 local refreshLoopConn = nil
+local wardenAutoPickup = false
+local wardenWatchConn = nil
 
 -- Whitelist State
 local whitelistedPlayers = {} -- { [username] = true }
+
+local excludedNPCs = {
+    ["Balith"] = true,
+}
 
 -- Core logic
 local function applyTo(part, size, transparency)
@@ -33,8 +39,14 @@ local function isWhitelisted(modelName)
     return modelName == localUsername or whitelistedPlayers[modelName] == true
 end
 
+-- Add a separate check:
+local function isExcluded(modelName)
+    return excludedNPCs[modelName] == true
+end
+
 local function restoreModel(model)
     if not model:IsA("Model") then return end
+    if isExcluded(model.Name) then return end
     local head = model:FindFirstChild("Head")
     local hrp = model:FindFirstChild("HumanoidRootPart")
     if head then
@@ -60,6 +72,7 @@ local function processModel(model, size, transparency)
         restoreModel(model)
         return
     end
+    if isExcluded(model.Name) then return end
     local head = model:FindFirstChild("Head")
     local hrp = model:FindFirstChild("HumanoidRootPart")
     if head then
@@ -126,6 +139,39 @@ local function refreshHitboxes()
     end
 end
 
+local function fireWardenPickup(wardenModel)
+    local hitbox = wardenModel:FindFirstChild("Hitbox")
+    if not hitbox then return end
+    local ti = hitbox:FindFirstChild("TouchInterest")
+    if not ti then return end
+    local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    firetouchinterest(hrp, hitbox, 0) -- touch begin
+    task.wait(0.1)
+    firetouchinterest(hrp, hitbox, 1) -- touch end
+    print("Warden pickup fired!")
+end
+
+local function startWardenWatch()
+    local gameObjects = workspace:WaitForChild("GameObjects", 10)
+    if not gameObjects then return end
+    local drops = gameObjects:WaitForChild("Drops", 10)
+    if not drops then return end
+
+    -- Check if already exists
+    local existing = drops:FindFirstChild("Warden")
+    if existing and wardenAutoPickup then
+        fireWardenPickup(existing)
+    end
+
+    wardenWatchConn = drops.ChildAdded:Connect(function(child)
+        if child.Name == "Warden" and wardenAutoPickup then
+            task.wait(0.1) -- let it fully load
+            fireWardenPickup(child)
+        end
+    end)
+end
+
 -- Build Rayfield Window
 local Window = Rayfield:CreateWindow({
     Name = "CHITO",
@@ -140,7 +186,7 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false,
 })
 
-local Tab = Window:CreateTab("Hitbox", 4483362458)
+local Tab = Window:CreateTab("Main", 4483362458)
 
 -- Info section (top)
 Tab:CreateSection("Info")
@@ -178,7 +224,7 @@ Tab:CreateToggle({
 Tab:CreateSlider({
     Name = "Hitbox Size",
     Range = {1, 50},
-    Increment = 1,
+    Increment = 0.1,
     Suffix = "studs",
     CurrentValue = 15,
     Flag = "HitboxSize",
@@ -192,7 +238,7 @@ Tab:CreateSlider({
 Tab:CreateSlider({
     Name = "Hitbox Transparency",
     Range = {0, 10},
-    Increment = 1,
+    Increment = 0.1,
     Suffix = "/10",
     CurrentValue = 5,
     Flag = "HitboxTransparency",
@@ -201,6 +247,33 @@ Tab:CreateSlider({
         refreshHitboxes()
     end,
 })
+
+Tab:CreateToggle({
+    Name = "Auto Cherry (Balith loot)",
+    CurrentValue = false,
+    Flag = "WardenPickup",
+    Callback = function(value)
+        wardenAutoPickup = value
+        if value then
+            task.spawn(startWardenWatch)
+            Rayfield:Notify({
+                Title = "Warden Pickup",
+                Content = "Watching for Warden drop...",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        else
+            if wardenWatchConn then
+                wardenWatchConn:Disconnect()
+                wardenWatchConn = nil
+            end
+        end
+    end,
+})
+
+Tab:CreateLabel("If your executor supports firing touchinterest, you'll pick up the loot without teleporting.")
+
+
 
 local flingEnabled = false
 local flingConn = nil
